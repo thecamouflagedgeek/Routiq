@@ -123,15 +123,18 @@ export function stopSpeaking() {
 }
 
 // ---------------------------------------------------------------------------
-// Tiny demo "music" engine: a soft arpeggio loop whose volume the system can
-// raise when fatigue escalates (demo of the in-car audio integration).
+// Ambient "engine hum" pad — soft, slow, and low by default. Volume rises
+// only when fatigue escalates (demo of the in-car audio integration). This
+// replaces the earlier fast arpeggio, which was too busy to sit in the
+// background comfortably.
 // ---------------------------------------------------------------------------
 export class DemoMusic {
   private ctx: AudioContext | null = null
   private master: GainNode | null = null
+  private filter: BiquadFilterNode | null = null
   private timer: number | null = null
   private step = 0
-  private _volume = 0.12
+  private _volume = 0.05
 
   get volume() {
     return this._volume
@@ -149,8 +152,12 @@ export class DemoMusic {
     this.ctx = new Ctor()
     this.master = this.ctx.createGain()
     this.master.gain.value = this._volume
+    this.filter = this.ctx.createBiquadFilter()
+    this.filter.type = 'lowpass'
+    this.filter.frequency.value = 900
+    this.filter.connect(this.master)
     this.master.connect(this.ctx.destination)
-    this.timer = window.setInterval(() => this.tick(), 420)
+    this.timer = window.setInterval(() => this.tick(), 900)
   }
 
   stop() {
@@ -159,23 +166,24 @@ export class DemoMusic {
     this.ctx?.close().catch(() => {})
     this.ctx = null
     this.master = null
+    this.filter = null
   }
 
   private tick() {
-    if (!this.ctx || !this.master) return
-    const freqs = [261.63, 329.63, 392.0, 523.25] // C E G C
+    if (!this.ctx || !this.master || !this.filter) return
+    const freqs = [130.81, 164.81, 196.0] // low, slow-moving pad tones
     const osc = this.ctx.createOscillator()
     const gain = this.ctx.createGain()
     osc.type = 'sine'
     osc.frequency.value = freqs[this.step % freqs.length]
     const t = this.ctx.currentTime
     gain.gain.setValueAtTime(0, t)
-    gain.gain.linearRampToValueAtTime(0.9, t + 0.03)
-    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.4)
+    gain.gain.linearRampToValueAtTime(0.5, t + 0.4)
+    gain.gain.linearRampToValueAtTime(0, t + 1.6)
     osc.connect(gain)
-    gain.connect(this.master)
+    gain.connect(this.filter)
     osc.start(t)
-    osc.stop(t + 0.42)
+    osc.stop(t + 1.7)
     this.step += 1
   }
 }

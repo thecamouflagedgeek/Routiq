@@ -1,143 +1,173 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowRight, List, MapPin, MapPinned, Plus } from 'lucide-react'
-import { BookingCard } from '../components/BookingCard'
-import { HazardForm } from '../components/HazardForm'
-import { MapView } from '../components/map/MapView'
-import { PlaceAutocomplete } from '../components/PlaceAutocomplete'
-import { SegmentPanel } from '../components/SegmentPanel'
-import { SectionLabel } from '../components/ui'
-import { DEFAULT_END, DEFAULT_START, SEVERITY_META } from '../config'
-import { useGeolocation } from '../hooks/useGeolocation'
-import { api } from '../services/api'
-import type { Hazard, HazardType, Place, RouteResponse, Segment } from '../types'
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ArrowRight, List, MapPin, MapPinned, Plus } from "lucide-react";
+import { BookingCard } from "../components/BookingCard";
+import { HazardForm } from "../components/HazardForm";
+import { MapView } from "../components/map/MapView";
+import { PlaceAutocomplete } from "../components/PlaceAutocomplete";
+import { SegmentPanel } from "../components/SegmentPanel";
+import { SectionLabel } from "../components/ui";
+import { DEFAULT_END, DEFAULT_START, SEVERITY_META } from "../config";
+import { useGeolocation } from "../hooks/useGeolocation";
+import { api } from "../services/api";
+import type {
+  Hazard,
+  HazardType,
+  Place,
+  RouteResponse,
+  Segment,
+} from "../types";
+import type { UseFatigue } from "../hooks/useFatigue";
 
-type PickMode = 'start' | 'end' | 'hazard' | null
+type PickMode = "start" | "end" | "hazard" | null;
 
 export function Dashboard({
   onOpenEmergency,
   initialReport = false,
+  fatigue,
 }: {
-  onOpenEmergency: () => void
-  initialReport?: boolean
+  onOpenEmergency: () => void;
+  initialReport?: boolean;
+  fatigue: UseFatigue;
 }) {
-  const [start, setStart] = useState<Place | null>(DEFAULT_START)
-  const [end, setEnd] = useState<Place | null>(DEFAULT_END)
-  const [route, setRoute] = useState<RouteResponse | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [selected, setSelected] = useState<Segment | null>(null)
-  const [hazards, setHazards] = useState<Hazard[]>([])
-  const [showList, setShowList] = useState(false)
-  const [pickMode, setPickMode] = useState<PickMode>(null)
-  const [reportOpen, setReportOpen] = useState(false)
-  const [reportLocation, setReportLocation] = useState<{ lat: number; lon: number } | null>(null)
-  const [reportPreset, setReportPreset] = useState<{ type?: HazardType } | undefined>(undefined)
-  const [fullscreen, setFullscreen] = useState(false)
-  const mapRef = useRef<L.Map | null>(null)
-  const geo = useGeolocation()
+  const [start, setStart] = useState<Place | null>(DEFAULT_START);
+  const [end, setEnd] = useState<Place | null>(DEFAULT_END);
+  const [route, setRoute] = useState<RouteResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [selected, setSelected] = useState<Segment | null>(null);
+  const [hazards, setHazards] = useState<Hazard[]>([]);
+  const [showList, setShowList] = useState(false);
+  const [pickMode, setPickMode] = useState<PickMode>(null);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportLocation, setReportLocation] = useState<{
+    lat: number;
+    lon: number;
+  } | null>(null);
+  const [reportPreset, setReportPreset] = useState<
+    { type?: HazardType } | undefined
+  >(undefined);
+  const [fullscreen, setFullscreen] = useState(false);
+  const mapRef = useRef<L.Map | null>(null);
+  const geo = useGeolocation();
 
   const loadRoute = useCallback(async (s: Place, e: Place) => {
-    setLoading(true)
-    setSelected(null)
-    setShowList(false)
+    setLoading(true);
+    setSelected(null);
+    setShowList(false);
     try {
-      const r = await api.getRoute([s.lat, s.lon], [e.lat, e.lon])
-      setRoute(r)
-      const mid = r.geometry[Math.floor(r.geometry.length / 2)]
-      const hz = await api.getHazards(mid[0], mid[1], 9000, 60)
-      setHazards(hz)
+      const r = await api.getRoute([s.lat, s.lon], [e.lat, e.lon]);
+      setRoute(r);
+      const mid = r.geometry[Math.floor(r.geometry.length / 2)];
+      const hz = await api.getHazards(mid[0], mid[1], 9000, 60);
+      setHazards(hz);
     } catch (err) {
-      console.error('route failed', err)
+      console.error("route failed", err);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }, [])
+  }, []);
 
   useEffect(() => {
-    loadRoute(DEFAULT_START, DEFAULT_END)
-  }, [loadRoute])
+    loadRoute(DEFAULT_START, DEFAULT_END);
+  }, [loadRoute]);
 
   // opened from the navbar's Report Hazard button
   useEffect(() => {
     if (initialReport) {
-      openHazardForm()
-      window.history.replaceState(null, '', '#/dashboard')
+      openHazardForm();
+      window.history.replaceState(null, "", "#/dashboard");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialReport])
+  }, [initialReport]);
 
   const onPickMapLocation = useCallback(
     (lat: number, lon: number) => {
-      if (pickMode === 'start' || pickMode === 'end') {
+      if (pickMode === "start" || pickMode === "end") {
         const place: Place = {
           label: `Pinned location (${lat.toFixed(4)}, ${lon.toFixed(4)})`,
-          sublabel: 'Map pin',
+          sublabel: "Map pin",
           lat,
           lon,
-          city: '',
-        }
-        if (pickMode === 'start') {
-          setStart(place)
-          if (end) loadRoute(place, end)
+          city: "",
+        };
+        if (pickMode === "start") {
+          setStart(place);
+          if (end) loadRoute(place, end);
         } else {
-          setEnd(place)
-          if (start) loadRoute(start, place)
+          setEnd(place);
+          if (start) loadRoute(start, place);
         }
-        setPickMode(null)
-      } else if (pickMode === 'hazard') {
-        setReportLocation({ lat, lon })
-        setPickMode(null)
-        setReportOpen(true)
+        setPickMode(null);
+      } else if (pickMode === "hazard") {
+        setReportLocation({ lat, lon });
+        setPickMode(null);
+        setReportOpen(true);
       }
     },
     [pickMode, end, start, loadRoute],
-  )
+  );
 
   const useMyLocationForPlace = useCallback(
-    async (which: 'start' | 'end') => {
-      const fix = await geo.getPosition()
-      if (!fix) return
-      const place: Place = { label: 'My location', sublabel: 'Current position', lat: fix.lat, lon: fix.lon, city: '' }
-      if (which === 'start') {
-        setStart(place)
-        if (end) loadRoute(place, end)
+    async (which: "start" | "end") => {
+      const fix = await geo.getPosition();
+      if (!fix) return;
+      const place: Place = {
+        label: "My location",
+        sublabel: "Current position",
+        lat: fix.lat,
+        lon: fix.lon,
+        city: "",
+      };
+      if (which === "start") {
+        setStart(place);
+        if (end) loadRoute(place, end);
       } else {
-        setEnd(place)
-        if (start) loadRoute(start, place)
+        setEnd(place);
+        if (start) loadRoute(start, place);
       }
     },
     [geo, end, start, loadRoute],
-  )
+  );
 
-  const openHazardForm = useCallback((opts?: { lat?: number; lon?: number; type?: HazardType; segment?: Segment }) => {
-    setReportPreset(opts?.type ? { type: opts.type } : undefined)
-    if (opts?.lat != null && opts?.lon != null) {
-      setReportLocation({ lat: opts.lat, lon: opts.lon })
-    } else {
-      setReportLocation(null)
-    }
-    setReportOpen(true)
-  }, [])
+  const openHazardForm = useCallback(
+    (opts?: {
+      lat?: number;
+      lon?: number;
+      type?: HazardType;
+      segment?: Segment;
+    }) => {
+      setReportPreset(opts?.type ? { type: opts.type } : undefined);
+      if (opts?.lat != null && opts?.lon != null) {
+        setReportLocation({ lat: opts.lat, lon: opts.lon });
+      } else {
+        setReportLocation(null);
+      }
+      setReportOpen(true);
+    },
+    [],
+  );
 
   const onSubmitted = useCallback((h: Hazard) => {
-    setHazards((prev) => [h, ...prev.filter((x) => x.id !== h.id)])
-  }, [])
+    setHazards((prev) => [h, ...prev.filter((x) => x.id !== h.id)]);
+  }, []);
 
   const worst = useMemo(() => {
-    if (!route?.segments.length) return null
-    return [...route.segments].sort((a, b) => a.safety_score - b.safety_score)[0]
-  }, [route])
+    if (!route?.segments.length) return null;
+    return [...route.segments].sort(
+      (a, b) => a.safety_score - b.safety_score,
+    )[0];
+  }, [route]);
 
   const toggleFullscreen = useCallback(() => {
     if (document.fullscreenElement) {
-      document.exitFullscreen().catch(() => {})
-      setFullscreen(false)
+      document.exitFullscreen().catch(() => {});
+      setFullscreen(false);
     } else {
-      document.documentElement.requestFullscreen().catch(() => {})
-      setFullscreen(true)
+      document.documentElement.requestFullscreen().catch(() => {});
+      setFullscreen(true);
     }
-  }, [])
+  }, []);
 
-  const segments = route?.segments ?? []
+  const segments = route?.segments ?? [];
 
   return (
     <div className="relative h-screen w-full overflow-hidden bg-neutral-100">
@@ -148,18 +178,18 @@ export function Dashboard({
           hazards={hazards}
           selectedSegment={selected}
           onSelectSegment={(s) => {
-            setSelected(s)
-            setShowList(false)
+            setSelected(s);
+            setShowList(false);
           }}
-          hazardPickMode={pickMode === 'hazard'}
+          hazardPickMode={pickMode === "hazard"}
           onPickLocation={onPickMapLocation}
           onReady={(m) => {
-            mapRef.current = m
+            mapRef.current = m;
           }}
           onFullscreen={toggleFullscreen}
           isFullscreen={fullscreen}
-          startLabel={start?.name ?? start?.label ?? 'Start'}
-          endLabel={end?.name ?? end?.label ?? 'Destination'}
+          startLabel={start?.name ?? start?.label ?? "Start"}
+          endLabel={end?.name ?? end?.label ?? "Destination"}
         />
       </div>
 
@@ -185,24 +215,24 @@ export function Dashboard({
                   placeholder="E.g. Bandra West, Mumbai"
                   variant="start"
                   onSelect={(p) => {
-                    setStart(p)
-                    if (end) loadRoute(p, end)
+                    setStart(p);
+                    if (end) loadRoute(p, end);
                   }}
-                  onUseMyLocation={() => useMyLocationForPlace('start')}
-                  onPickOnMap={() => setPickMode('start')}
-                  picking={pickMode === 'start'}
+                  onUseMyLocation={() => useMyLocationForPlace("start")}
+                  onPickOnMap={() => setPickMode("start")}
+                  picking={pickMode === "start"}
                 />
                 <PlaceAutocomplete
                   value={end}
                   placeholder="E.g. Malad West, Mumbai"
                   variant="end"
                   onSelect={(p) => {
-                    setEnd(p)
-                    if (start) loadRoute(start, p)
+                    setEnd(p);
+                    if (start) loadRoute(start, p);
                   }}
-                  onUseMyLocation={() => useMyLocationForPlace('end')}
-                  onPickOnMap={() => setPickMode('end')}
-                  picking={pickMode === 'end'}
+                  onUseMyLocation={() => useMyLocationForPlace("end")}
+                  onPickOnMap={() => setPickMode("end")}
+                  picking={pickMode === "end"}
                 />
               </div>
               <button
@@ -222,8 +252,8 @@ export function Dashboard({
               loading={loading}
               onPlanRoute={() => start && end && loadRoute(start, end)}
               onShowSegments={() => {
-                setShowList((v) => !v)
-                setSelected(null)
+                setShowList((v) => !v);
+                setSelected(null);
               }}
               expanded={showList}
             />
@@ -243,16 +273,30 @@ export function Dashboard({
               </div>
               <ul className="space-y-1.5">
                 {hazards.slice(0, 3).map((h) => (
-                  <li key={h.id} className="flex items-center justify-between gap-2 text-xs">
+                  <li
+                    key={h.id}
+                    className="flex items-center justify-between gap-2 text-xs"
+                  >
                     <span className="flex min-w-0 items-center gap-2">
-                      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: SEVERITY_META[h.severity].color }} />
-                      <span className="truncate font-semibold text-neutral-800">{h.description}</span>
-                      {h.source === 'user' && (
-                        <span className="rounded bg-black px-1.5 py-0.5 text-[9px] font-extrabold text-white">YOU</span>
+                      <span
+                        className="h-2.5 w-2.5 shrink-0 rounded-full"
+                        style={{
+                          backgroundColor: SEVERITY_META[h.severity].color,
+                        }}
+                      />
+                      <span className="truncate font-semibold text-neutral-800">
+                        {h.description}
+                      </span>
+                      {h.source === "user" && (
+                        <span className="rounded bg-black px-1.5 py-0.5 text-[9px] font-extrabold text-white">
+                          YOU
+                        </span>
                       )}
                     </span>
                     <span className="shrink-0 text-[10px] font-medium text-neutral-400">
-                      {h.distance_m != null ? `${Math.round(h.distance_m)} m` : ''}
+                      {h.distance_m != null
+                        ? `${Math.round(h.distance_m)} m`
+                        : ""}
                     </span>
                   </li>
                 ))}
@@ -269,8 +313,8 @@ export function Dashboard({
           loading={loading}
           onPlanRoute={() => start && end && loadRoute(start, end)}
           onShowSegments={() => {
-            setShowList((v) => !v)
-            setSelected(null)
+            setShowList((v) => !v);
+            setSelected(null);
           }}
           expanded={showList}
         />
@@ -290,7 +334,10 @@ export function Dashboard({
               <List size={16} className="text-neutral-500" />
               <SectionLabel>Route breakdown</SectionLabel>
             </div>
-            <button onClick={() => setShowList(false)} className="cursor-pointer text-neutral-400 hover:text-neutral-900">
+            <button
+              onClick={() => setShowList(false)}
+              className="cursor-pointer text-neutral-400 hover:text-neutral-900"
+            >
               <ArrowRight size={16} className="rotate-180" />
             </button>
           </div>
@@ -299,19 +346,29 @@ export function Dashboard({
               <button
                 key={seg.id}
                 onClick={() => {
-                  setSelected(seg)
-                  setShowList(false)
+                  setSelected(seg);
+                  setShowList(false);
                 }}
                 className="flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-left hover:bg-neutral-100"
               >
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-black text-white" style={{ backgroundColor: seg.risk_color }}>
+                <span
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-black text-white"
+                  style={{ backgroundColor: seg.risk_color }}
+                >
                   {i + 1}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-bold text-neutral-900">{seg.name}</span>
-                  <span className="block text-[11px] font-semibold text-neutral-400">{seg.distance_km.toFixed(1)} km</span>
+                  <span className="block truncate text-sm font-bold text-neutral-900">
+                    {seg.name}
+                  </span>
+                  <span className="block text-[11px] font-semibold text-neutral-400">
+                    {seg.distance_km.toFixed(1)} km
+                  </span>
                 </span>
-                <span className="text-sm font-black" style={{ color: seg.risk_color }}>
+                <span
+                  className="text-sm font-black"
+                  style={{ color: seg.risk_color }}
+                >
                   {seg.safety_score}
                 </span>
               </button>
@@ -320,15 +377,21 @@ export function Dashboard({
           {worst && (
             <div className="border-t border-neutral-100 p-3">
               <div className="rounded-xl bg-red-50 p-3">
-                <div className="text-[10px] font-extrabold uppercase tracking-widest text-red-500">Most dangerous segment</div>
+                <div className="text-[10px] font-extrabold uppercase tracking-widest text-red-500">
+                  Most dangerous segment
+                </div>
                 <div className="mt-0.5 flex items-center justify-between">
-                  <span className="text-xs font-bold text-neutral-800">{worst.name}</span>
-                  <span className="text-lg font-black text-red-500">{worst.safety_score}</span>
+                  <span className="text-xs font-bold text-neutral-800">
+                    {worst.name}
+                  </span>
+                  <span className="text-lg font-black text-red-500">
+                    {worst.safety_score}
+                  </span>
                 </div>
                 <button
                   onClick={() => {
-                    setSelected(worst)
-                    setShowList(false)
+                    setSelected(worst);
+                    setShowList(false);
                   }}
                   className="mt-2 flex w-full cursor-pointer items-center justify-center gap-1 rounded-lg bg-red-500 py-1.5 text-xs font-bold text-white hover:bg-red-600"
                 >
@@ -346,32 +409,32 @@ export function Dashboard({
           segment={selected}
           onClose={() => setSelected(null)}
           onReportHazard={(seg) => {
-            const mid = seg.geometry[Math.floor(seg.geometry.length / 2)]
-            openHazardForm({ lat: mid[0], lon: mid[1] })
+            const mid = seg.geometry[Math.floor(seg.geometry.length / 2)];
+            openHazardForm({ lat: mid[0], lon: mid[1] });
           }}
         />
       )}
 
       {/* Hazard report modal */}
       <HazardForm
-        key={`${reportOpen}-${reportPreset?.type ?? 'none'}`}
+        key={`${reportOpen}-${reportPreset?.type ?? "none"}`}
         open={reportOpen}
         onClose={() => setReportOpen(false)}
         defaultLocation={reportLocation}
         preset={reportPreset}
-        picking={pickMode === 'hazard'}
+        picking={pickMode === "hazard"}
         onPickFromMap={() => {
-          setReportOpen(false)
-          setPickMode('hazard')
+          setReportOpen(false);
+          setPickMode("hazard");
         }}
         onUseMyLocation={async () => {
-          const fix = await geo.getPosition()
-          if (fix) setReportLocation({ lat: fix.lat, lon: fix.lon })
+          const fix = await geo.getPosition();
+          if (fix) setReportLocation({ lat: fix.lat, lon: fix.lon });
         }}
         onSubmitted={onSubmitted}
       />
 
-      {pickMode === 'hazard' && (
+      {pickMode === "hazard" && (
         <div className="absolute bottom-6 left-1/2 z-[1060] -translate-x-1/2">
           <div className="flex items-center gap-2 rounded-full bg-neutral-900 px-5 py-3 text-xs font-bold text-white shadow-2xl">
             <MapPin size={14} className="text-orange-400" />
@@ -386,6 +449,5 @@ export function Dashboard({
         </div>
       )}
     </div>
-  )
+  );
 }
-

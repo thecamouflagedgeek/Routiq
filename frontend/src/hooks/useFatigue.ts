@@ -22,7 +22,7 @@ export type SleepPhase =
   | 'paused'
   | 'alert'
 
-const QUESTIONS = [
+const QUESTION_POOL = [
   "How's the drive going?",
   'Quick check — what was the last turn you took?',
   'Want me to play something for you?',
@@ -30,10 +30,18 @@ const QUESTIONS = [
   'How are you feeling — need a break soon?',
 ]
 
-const CHECKINS: Record<number, string> = {
-  1: 'You seem quiet — everything okay up there?',
-  2: 'Hey, you still with me?',
-  3: 'I need you to pull over now. Are you able to stop safely?',
+const CHECKIN_VARIANTS: Record<number, string[]> = {
+  1: [
+    'You seem a little quiet — everything okay?',
+    'Just checking in — how are you holding up?',
+    'All good up there? Let me know.',
+  ],
+  2: [
+    "Hey, you still with me? A couple of those replies were slow.",
+    "I want to make sure you're doing okay — talk to me.",
+    "You've gone quiet a couple times now. Everything alright?",
+  ],
+  3: ['I need you to pull over now. Are you able to stop safely?'],
 }
 
 const INTRO = 'Sleep Drive is active. I will check in with you as we drive. First question — '
@@ -60,7 +68,15 @@ export interface LatencyResult {
   transcript: string
 }
 
-// local mirror of the backend state machine, used when the API is unreachable
+export interface DriverState {
+  engagement: number
+  fatigueRisk: 'LOW' | 'ELEVATED' | 'HIGH' | 'CRITICAL'
+  responseLatency: number | null
+  silenceDetected: boolean
+  state: FatigueState['state']
+  active: boolean
+}
+
 function localStep(
   prev: FatigueState,
   type: 'question_asked' | 'response' | 'no_response' | 'timeout' | 'reset',
@@ -101,7 +117,7 @@ function localStep(
     next.missed_responses += 1
   }
   const severity = next.slow_responses + 2 * next.missed_responses
-  next.escalation_level = severity === 0 ? 0 : severity === 1 ? 1 : severity <= 3 ? 2 : 3
+  next.escalation_level = severity === 0 ? 0 : severity <= 2 ? 1 : severity <= 4 ? 2 : 3
   next.fatigue_confidence = Math.min(
     96,
     next.slow_responses * 14 + next.missed_responses * 22 + (next.escalation_level === 3 ? 20 : 0),
@@ -123,6 +139,12 @@ function localStep(
           ? "Hey, you still with me? I'm getting worried."
           : 'No response detected. Checking in again shortly.'
   return next
+}
+
+function musicVolumeFor(level: number): number {
+  if (level >= 3) return 0.3
+  if (level >= 2) return 0.18
+  return 0.05
 }
 
 export function useFatigue() {
@@ -156,6 +178,7 @@ export function useFatigue() {
   const phaseRef = useRef<SleepPhase>('idle')
   const stateRef = useRef<FatigueState>(EMPTY_STATE)
   const sessionIdRef = useRef('')
+  const sessionStartRef = useRef<number | null>(null)
   const questionStartRef = useRef(0)
   const speechStartRef = useRef<number | null>(null)
   const thresholdsRef = useRef(thresholds)
@@ -167,7 +190,6 @@ export function useFatigue() {
   const aiRef = useRef(true)
   const aiAvailableRef = useRef<boolean | null>(null)
   const historyRef = useRef<{ role: string; content: string }[]>([])
-  const ttsDoneRef = useRef(false)
 
   const micSupported = useMemo(() => hasSpeechRecognition(), [])
 
@@ -179,8 +201,7 @@ export function useFatigue() {
   const applyState = useCallback((s: FatigueState) => {
     stateRef.current = s
     setState(s)
-    if (s.escalation_level >= 2) musicRef.current?.setVolume(0.4)
-    if (s.escalation_level >= 3) musicRef.current?.setVolume(0.55)
+    musicRef.current?.setVolume(musicVolumeFor(s.escalation_level))
   }, [])
 
   const later = useCallback((fn: () => void, ms: number) => {
@@ -210,7 +231,6 @@ export function useFatigue() {
       setListening(false)
       return
     }
-
     setListening(true)
     window.requestAnimationFrame(() => {
       if (!activeRef.current || phaseRef.current !== 'waiting') {
@@ -257,6 +277,11 @@ export function useFatigue() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  const sessionSeconds = useCallback((): number | undefined => {
+    if (sessionStartRef.current == null) return undefined
+    return (performance.now() - sessionStartRef.current) / 1000
+  }, [])
+
   const pickQuestion = useCallback(
     async (): Promise<{ text: string; source: 'ai' | 'scripted' }> => {
       const scripted = nextQuestion(stateRef.current, stateRef.current.questions_asked)
@@ -266,10 +291,10 @@ export function useFatigue() {
             .fatigueChat({
               intent: 'question',
               session_id: sessionIdRef.current || undefined,
-              messages: historyRef.current.slice(-6),
+              messages: historyRef.current.slice(-12),
             })
             .then((r) => (r.source === 'ai' ? r.reply : null)),
-          new Promise<string | null>((res) => setTimeout(() => res(null), 2200)),
+          new Promise<string | null>((res) => setTimeout(() => res(null), 1500)),
         ])
         if (ai) return { text: ai, source: 'ai' }
       }
@@ -279,6 +304,9 @@ export function useFatigue() {
   )
 
   // -------------------------------------------------------------------- ask
+  // Mic now starts almost immediately (small delay just to let the UI paint
+  // and avoid catching the very start of the TTS attack). It no longer waits
+  // for TTS onEnd — that was the main source of felt lag between turns.
   const askQuestion = useCallback(async () => {
     if (!activeRef.current) return
     const { text: q, source } = await pickQuestion()
@@ -302,22 +330,9 @@ export function useFatigue() {
     }
 
     historyRef.current = [...historyRef.current.slice(-9), { role: 'assistant', content: q }]
-    ttsDoneRef.current = false
-    if (ttsRef.current) {
-      speak(q, {
-        rate: 1.02,
-        onEnd: () => {
-          ttsDoneRef.current = true
-          startListening()
-        },
-      })
-      // fallback: never stall the loop if TTS never fires onEnd (headless/muted)
-      later(() => {
-        if (!ttsDoneRef.current) startListening()
-      }, 1800)
-    } else {
-      startListening()
-    }
+
+    later(() => startListening(), 250)
+    if (ttsRef.current) speak(q, { rate: 1.02 })
   }, [applyState, later, pickQuestion, setPhaseBoth, startListening])
 
   // ------------------------------------------------------------------ alert
@@ -353,12 +368,33 @@ export function useFatigue() {
       }
       const duration = text ? Math.min(8, text.split(' ').length * 0.5 + 1) : undefined
       const sid = sessionIdRef.current
+      const prevLevel = stateRef.current.escalation_level
 
       const apply = (s: FatigueState) => {
         applyState(s)
-        if (ttsRef.current) speak(s.message || 'Response analyzed.')
-        if (s.escalation_level >= 3) later(() => enterAlert(), 1200)
-        else later(() => askQuestion(), 1400)
+        const staysNormal = prevLevel === 0 && s.escalation_level === 0
+
+        if (text && aiRef.current && aiAvailableRef.current) {
+          Promise.race([
+            api
+              .fatigueChat({
+                intent: 'reply',
+                session_id: sessionIdRef.current || undefined,
+                messages: historyRef.current.slice(-12),
+              })
+              .then((r) => (r.source === 'ai' ? r.reply : null)),
+            new Promise<string | null>((res) => setTimeout(() => res(null), 1500)),
+          ]).then((ai) => {
+            const spoken = ai || s.message
+            if (ttsRef.current && !(staysNormal && !ai)) speak(spoken)
+          })
+        } else if (ttsRef.current && !staysNormal) {
+          speak(s.message || 'Response analyzed.')
+        }
+
+        // shortened pacing — turns feel snappier
+        if (s.escalation_level >= 3) later(() => enterAlert(), 1000)
+        else later(() => askQuestion(), staysNormal ? 400 : 900)
       }
 
       if (sid) {
@@ -399,7 +435,7 @@ export function useFatigue() {
       applyState(s)
       if (ttsRef.current) speak(s.message)
       if (s.escalation_level >= 3) later(() => enterAlert(), 1000)
-      else later(() => askQuestion(), 1500)
+      else later(() => askQuestion(), 1200)
     }
     if (sid) {
       api
@@ -415,14 +451,14 @@ export function useFatigue() {
   const start = useCallback(() => {
     if (activeRef.current) return
     activeRef.current = true
+    sessionStartRef.current = performance.now()
     initVoices()
     ensureRecognition()
     musicRef.current = musicRef.current || new DemoMusic()
-    musicRef.current.setVolume(0.12)
+    musicRef.current.setVolume(0.05)
     musicRef.current.start()
     setPhaseBoth('starting')
 
-    // probe AI availability in parallel so questions never stall later
     if (aiRef.current && aiAvailableRef.current === null) {
       api
         .fatigueChat({ intent: 'question', messages: [] })
@@ -456,21 +492,9 @@ export function useFatigue() {
         setQuestion(INTRO)
         later(() => {
           if (!activeRef.current) return
-          ttsDoneRef.current = false
-          if (ttsRef.current) {
-            speak(INTRO, {
-              onEnd: () => {
-                ttsDoneRef.current = true
-                askQuestion()
-              },
-            })
-            later(() => {
-              if (!ttsDoneRef.current) askQuestion()
-            }, 2200)
-          } else {
-            askQuestion()
-          }
-        }, 700)
+          if (ttsRef.current) speak(INTRO)
+          later(() => askQuestion(), 500)
+        }, 500)
       })
   }, [applyState, askQuestion, ensureRecognition, later, setPhaseBoth])
 
@@ -486,24 +510,27 @@ export function useFatigue() {
     setQuestion('')
     setLastLatency(null)
     sessionIdRef.current = ''
+    sessionStartRef.current = null
   }, [clearTimers, setPhaseBoth, stopListening])
 
   const pause = useCallback(() => {
     activeRef.current = false
     stopListening()
     clearTimers()
+    musicRef.current?.stop()
     setPhaseBoth('paused')
   }, [clearTimers, setPhaseBoth, stopListening])
 
   const resume = useCallback(() => {
     if (activeRef.current) return
     activeRef.current = true
+    musicRef.current?.start()
+    musicRef.current?.setVolume(musicVolumeFor(stateRef.current.escalation_level))
     setPhaseBoth('waiting')
     askQuestion()
   }, [askQuestion, setPhaseBoth])
 
   const recover = useCallback(() => {
-    // "I'm OK" after a critical alert — reset counters and resume monitoring
     activeRef.current = true
     const sid = sessionIdRef.current
     if (sid) {
@@ -514,7 +541,7 @@ export function useFatigue() {
     }
     applyState(localStep(stateRef.current, 'reset'))
     setLastLatency(null)
-    later(() => askQuestion(), 1200)
+    later(() => askQuestion(), 1000)
   }, [applyState, askQuestion, later])
 
   const demoReply = useCallback(
@@ -567,7 +594,6 @@ export function useFatigue() {
     }
   }, [setAiEnabled])
 
-  // elapsed ticker — triggers timeout at max_wait
   useEffect(() => {
     if (phase !== 'waiting' && phase !== 'listening') return
     const id = window.setInterval(() => {
@@ -581,7 +607,6 @@ export function useFatigue() {
     return () => window.clearInterval(id)
   }, [phase, handleTimeout])
 
-  // cleanup on unmount
   useEffect(
     () => () => {
       activeRef.current = false
@@ -592,6 +617,25 @@ export function useFatigue() {
     },
     [clearTimers, stopListening],
   )
+
+  const driverState: DriverState = useMemo(() => {
+    const fatigueRisk: DriverState['fatigueRisk'] =
+      state.escalation_level === 0
+        ? 'LOW'
+        : state.escalation_level === 1
+          ? 'ELEVATED'
+          : state.escalation_level === 2
+            ? 'HIGH'
+            : 'CRITICAL'
+    return {
+      engagement: Math.max(0, Math.round(100 - state.fatigue_confidence)),
+      fatigueRisk,
+      responseLatency: lastLatency?.latency ?? null,
+      silenceDetected: phase === 'alert' || state.missed_responses > 0,
+      state: state.state,
+      active: phase !== 'idle',
+    }
+  }, [state, lastLatency, phase])
 
   return {
     phase,
@@ -622,11 +666,23 @@ export function useFatigue() {
     aiAvailable,
     questionSource,
     setAi,
+    driverState,
+    sessionSeconds,
   }
 }
 
 function nextQuestion(state: FatigueState, asked: number): string {
-  const checkin = CHECKINS[state.escalation_level]
-  if (checkin) return checkin
-  return QUESTIONS[asked % QUESTIONS.length]
+  const level = state.escalation_level
+  if (level === 0) {
+    return QUESTION_POOL[asked % QUESTION_POOL.length]
+  }
+  const variants = CHECKIN_VARIANTS[level] ?? CHECKIN_VARIANTS[3]
+  const idx = asked % variants.length
+  let candidate = variants[idx]
+  if (candidate === state.last_question && variants.length > 1) {
+    candidate = variants[(idx + 1) % variants.length]
+  }
+  return candidate
 }
+
+export type UseFatigue = ReturnType<typeof useFatigue>

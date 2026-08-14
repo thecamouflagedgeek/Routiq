@@ -231,7 +231,6 @@ async def fatigue_event(event: FatigueEvent) -> FatigueState:
 
 @app.post("/api/fatigue/chat", response_model=FatigueChatResponse)
 async def fatigue_chat(req: FatigueChatRequest) -> FatigueChatResponse:
-    """AI-powered Sleep Drive conversation (Gemini when keyed, scripted otherwise)."""
     session = fatigue.get(req.session_id) if req.session_id else None
     if req.intent == "question":
         scripted = fatigue.next_question(session) if session else "How's the drive going?"
@@ -239,7 +238,12 @@ async def fatigue_chat(req: FatigueChatRequest) -> FatigueChatResponse:
         scripted = "Got it — thanks for staying with me. I'll keep checking in."
     else:
         scripted = "I'm here to help with road safety. Ask me anything about your route, fatigue, or hazards."
-    reply, source = await assistant_reply(req.intent, req.messages, scripted, req.session_id)
+    reply, source = await assistant_reply(
+        req.intent, req.messages, scripted, req.session_id,
+        escalation_level=session.escalation_level if session else 0,
+        slow_responses=session.slow_responses if session else 0,
+        missed_responses=session.missed_responses if session else 0,
+    )
     return FatigueChatResponse(reply=reply, source=source)
 
 
