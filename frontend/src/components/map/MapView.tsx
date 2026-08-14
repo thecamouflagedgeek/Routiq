@@ -1,15 +1,16 @@
 import L from 'leaflet'
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { MapContainer, Marker, Polyline, TileLayer, useMap, useMapEvents } from 'react-leaflet'
 import { Crosshair, Maximize2, Minimize2 } from 'lucide-react'
 import { DEFAULT_MAP_CENTER, DEFAULT_ZOOM } from '../../config'
-import type { Hazard, Hospital, RouteResponse, Segment } from '../../types'
+import type { Hazard, Hospital, LatLng, RouteResponse, Segment } from '../../types'
 import {
   endIcon,
   HazardMarker,
   HospitalMarker,
   startIcon,
   userLocationIcon,
+  vehicleIcon,
 } from './Markers'
 
 interface MapViewProps {
@@ -18,6 +19,8 @@ interface MapViewProps {
   hospitals?: Hospital[] | null
   showHospitals?: boolean
   userLocation?: { lat: number; lon: number } | null
+  vehiclePosition?: LatLng | null
+  currentSegmentId?: number | null
   selectedSegment?: Segment | null
   onSelectSegment?: (segment: Segment | null) => void
   hazardPickMode?: boolean
@@ -29,15 +32,18 @@ interface MapViewProps {
   isFullscreen?: boolean
   startLabel?: string
   endLabel?: string
+  dark?: boolean
 }
 
 function RouteLayer({
   route,
   selected,
+  currentSegmentId,
   onSelect,
 }: {
   route: RouteResponse
   selected?: Segment | null
+  currentSegmentId?: number | null
   onSelect?: (s: Segment | null) => void
 }) {
   const casing = useMemo(
@@ -46,22 +52,42 @@ function RouteLayer({
   )
   return (
     <>
-      <Polyline positions={casing} pathOptions={{ color: '#ffffff', weight: 9, opacity: 0.95 }} />
+      {/* Electric Blue Glow Casing */}
+      <Polyline positions={casing} pathOptions={{ color: '#2563eb', weight: 12, opacity: 0.35, lineCap: 'round', lineJoin: 'round' }} />
+      {/* Main Route Line (Electric Blue for safe, amber/red for risk) */}
       {route.segments.map((seg) => {
         const isSelected = selected?.id === seg.id
+        const isCurrent = currentSegmentId === seg.id
+        // Primary route color is electric blue (#3b82f6) unless elevated risk
+        const segColor = seg.risk_level === 'SAFE' ? '#3b82f6' : seg.risk_color
         return (
           <Polyline
             key={seg.id}
             positions={seg.geometry.map((p) => [p[0], p[1]] as [number, number])}
             pathOptions={{
-              color: seg.risk_color,
-              weight: isSelected ? 8 : 5.5,
-              opacity: isSelected ? 1 : 0.95,
+              color: segColor,
+              weight: isCurrent ? 9 : isSelected ? 8.5 : 6,
+              opacity: isCurrent ? 1 : isSelected ? 1 : 0.95,
               lineCap: 'round',
               lineJoin: 'round',
             }}
-            eventHandlers={{
-              click: () => onSelect?.(seg),
+            eventHandlers={{ click: () => onSelect?.(seg) }}
+          />
+        )
+      })}
+      {/* current segment glow casing */}
+      {currentSegmentId != null && route.segments.map((seg) => {
+        if (seg.id !== currentSegmentId) return null
+        return (
+          <Polyline
+            key={`glow-${seg.id}`}
+            positions={seg.geometry.map((p) => [p[0], p[1]] as [number, number])}
+            pathOptions={{
+              color: seg.risk_color,
+              weight: 18,
+              opacity: 0.18,
+              lineCap: 'round',
+              lineJoin: 'round',
             }}
           />
         )
@@ -73,8 +99,22 @@ function RouteLayer({
 function FlyToBounds({ bounds }: { bounds: L.LatLngBounds | null }) {
   const map = useMap()
   useEffect(() => {
-    if (bounds) map.fitBounds(bounds, { padding: [70, 90] })
+    if (bounds) {
+      map.fitBounds(bounds, {
+        paddingTopLeft: [410, 80],
+        paddingBottomRight: [60, 80],
+      })
+    }
   }, [map, bounds])
+  return null
+}
+
+function FollowVehicle({ position }: { position: LatLng | null }) {
+  const map = useMap()
+  useEffect(() => {
+    if (!position) return
+    map.panTo([position[0], position[1]], { animate: true, duration: 0.4 })
+  }, [map, position])
   return null
 }
 
@@ -127,6 +167,8 @@ export function MapView({
   hospitals,
   showHospitals = false,
   userLocation,
+  vehiclePosition,
+  currentSegmentId,
   selectedSegment,
   onSelectSegment,
   hazardPickMode = false,
@@ -138,47 +180,66 @@ export function MapView({
   isFullscreen = false,
   startLabel,
   endLabel,
+  dark,
 }: MapViewProps) {
   const bounds = useMemo(() => {
-    if (!route || route.geometry.length < 2) return null
+    if (!route || route.geometry.length < 2 || vehiclePosition) return null
     const pts = route.geometry.map((p) => [p[0], p[1]] as [number, number])
     return L.latLngBounds(pts)
-  }, [route])
+  }, [route, vehiclePosition])
+
+  const vehIcon = useMemo(() => vehicleIcon(), [])
+
+  const isDark = dark ?? document.documentElement.classList.contains('dark')
+  const tileUrl = isDark
+    ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+    : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
 
   return (
     <MapContainer
       center={center}
       zoom={zoom}
-      zoomControl
+      zoomControl={false}
       className="h-full w-full"
-      ref={(map) => {
-        if (map) onReady?.(map)
-      }}
+      ref={(map) => { if (map) onReady?.(map) }}
     >
       <TileLayer
+        key={isDark ? 'dark-tiles' : 'light-tiles'}
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>'
-        url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+        url={tileUrl}
       />
 
       {route && (
         <>
-          <RouteLayer route={route} selected={selectedSegment} onSelect={onSelectSegment} />
-          <Marker position={[route.start[0], route.start[1]]} icon={startIcon(startLabel ?? 'Start')} />
-          <Marker position={[route.end[0], route.end[1]]} icon={endIcon(endLabel ?? 'Destination')} />
+          <RouteLayer
+            route={route}
+            selected={selectedSegment}
+            currentSegmentId={currentSegmentId}
+            onSelect={onSelectSegment}
+          />
+          {!vehiclePosition && (
+            <>
+              <Marker position={[route.start[0], route.start[1]]} icon={startIcon(startLabel ?? 'Start')} />
+              <Marker position={[route.end[0], route.end[1]]} icon={endIcon(endLabel ?? 'Destination')} />
+            </>
+          )}
+          {vehiclePosition && (
+            <Marker position={[vehiclePosition[0], vehiclePosition[1]]} icon={vehIcon} />
+          )}
         </>
       )}
 
-      {userLocation && (
+      {userLocation && !vehiclePosition && (
         <Marker position={[userLocation.lat, userLocation.lon]} icon={userLocationIcon()} />
       )}
 
-      {hazards?.map((h) => (
-        <HazardMarker key={h.id} hazard={h} />
-      ))}
-
+      {hazards?.map((h) => <HazardMarker key={h.id} hazard={h} />)}
       {showHospitals && hospitals?.map((h) => <HospitalMarker key={h.id} hospital={h} />)}
 
-      <FlyToBounds bounds={bounds} />
+      {vehiclePosition
+        ? <FollowVehicle position={vehiclePosition} />
+        : <FlyToBounds bounds={bounds} />
+      }
       <MapEvents hazardPickMode={hazardPickMode} onPick={onPickLocation} />
       {onFullscreen && <MapControls onFullscreen={onFullscreen} isFullscreen={isFullscreen} />}
     </MapContainer>

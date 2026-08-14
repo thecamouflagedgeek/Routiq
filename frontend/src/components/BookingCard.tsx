@@ -14,59 +14,70 @@ interface Props {
 export function BookingCard({ route, loading, onPlanRoute, onShowSegments, expanded }: Props) {
   const [showSafetyDetails, setShowSafetyDetails] = useState(false)
 
-
-  // Estimated ride charges matching Uber UI demo aesthetic ($2.50 base + $1.85/km)
-  const estimatedCharges = route ? Math.round(25 + route.distance_km * 18.5) : 229
-
   return (
-    <div className="w-[380px] max-w-full rounded-2xl border border-neutral-200/80 bg-white/95 p-4 shadow-[0_20px_50px_-15px_rgba(0,0,0,0.18)] backdrop-blur-md transition-all">
-      {/* Top weather & status row */}
+    <div
+      className="w-full rounded-2xl p-4 transition-all"
+      style={{
+        background: 'var(--surface)',
+        border: '1px solid var(--border)',
+        boxShadow: 'var(--shadow-lg)',
+      }}
+    >
+      {/* Top status row */}
       {route && (
-        <div className="mb-2.5 flex items-center justify-between">
+        <div className="mb-3 flex items-center justify-between">
           <div className="flex items-center gap-1.5">
-            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-orange-100 text-[11px]">
-              ✨
+            <span className="flex h-5 w-5 items-center justify-center rounded-full" style={{ background: 'rgba(249,115,22,0.12)' }}>
+              <ShieldCheck size={11} style={{ color: 'var(--orange)' }} />
             </span>
-            <span className="text-[11px] font-semibold text-neutral-500">Live NexRoad SafeRoute</span>
+            <span className="text-[11px] font-semibold" style={{ color: 'var(--text-3)' }}>Routiq SafeRoute</span>
           </div>
-          {route.weather && (
-            <span
-              title={`${route.weather.description} · ${route.weather.source === 'live' ? 'live weather' : 'demo weather'}`}
-              className="inline-flex items-center gap-1 rounded-full border border-neutral-100 bg-neutral-50 px-2 py-0.5 text-[10px] font-semibold text-neutral-600"
-            >
-              {route.weather.main === 'Clear' ? '☀️' : route.weather.main === 'Rain' ? '🌧️' : '☁️'} {route.weather.temp_c}°C
-            </span>
-          )}
-          <DataBadge source={route.source} />
+          <div className="flex items-center gap-1.5">
+            {route.weather && (
+              <span
+                className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                style={{ border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--text-3)' }}
+              >
+                {route.weather.main === 'Clear' ? '☀️' : route.weather.main === 'Rain' ? '🌧️' : '☁️'} {route.weather.temp_c}°C
+              </span>
+            )}
+            <DataBadge source={route.source} />
+          </div>
         </div>
       )}
 
-      {/* Main Stats Grid matching reference Uber card: DISTANCE | CHARGES / SAFETY | BOOK NOW */}
-      <div className="flex items-center justify-between gap-3 bg-neutral-50/80 p-3 rounded-xl border border-neutral-100">
+      {/* Stats row */}
+      <div
+        className="flex items-center justify-between gap-3 rounded-xl p-3"
+        style={{ background: 'var(--bg-2)', border: '1px solid var(--border-2)' }}
+      >
         <div>
-          <div className="text-[10px] font-extrabold uppercase tracking-widest text-neutral-400">DISTANCE</div>
-          <div className="mt-0.5 text-lg font-black text-neutral-900">
-            {route ? `${route.distance_km.toFixed(1)} KM` : '3.2 KM'}
+          <div className="text-[10px] font-extrabold uppercase tracking-widest" style={{ color: 'var(--text-4)' }}>Distance</div>
+          <div className="mt-0.5 text-lg font-black" style={{ color: 'var(--text)' }}>
+            {route ? `${route.distance_km.toFixed(1)} km` : '— km'}
           </div>
         </div>
 
         <div>
           <div className="flex items-center gap-1">
-            <span className="text-[10px] font-extrabold uppercase tracking-widest text-neutral-400">DRIVE TIME</span>
+            <span className="text-[10px] font-extrabold uppercase tracking-widest" style={{ color: 'var(--text-4)' }}>
+              {showSafetyDetails ? 'Safety' : 'Time'}
+            </span>
             <button
               onClick={() => setShowSafetyDetails((v) => !v)}
-              className="text-[9px] font-bold text-orange-600 underline cursor-pointer"
+              className="text-[9px] font-bold cursor-pointer"
+              style={{ color: 'var(--orange)' }}
             >
-              {showSafetyDetails ? 'Time' : 'Safety'}
+              {showSafetyDetails ? '← Time' : 'Safety →'}
             </button>
           </div>
-          <div className="mt-0.5 text-lg font-black text-neutral-900">
+          <div className="mt-0.5 text-lg font-black" style={{ color: 'var(--text)' }}>
             {showSafetyDetails && route ? (
-              <span className="flex items-center gap-1 text-emerald-600">
+              <span className="flex items-center gap-1" style={{ color: '#22c55e' }}>
                 <ShieldCheck size={14} /> {route.overall_score}/100
               </span>
             ) : (
-              route ? `${route.duration_min} min` : '48 min'
+              route ? `${route.duration_min} min` : '— min'
             )}
           </div>
         </div>
@@ -74,35 +85,31 @@ export function BookingCard({ route, loading, onPlanRoute, onShowSegments, expan
         <button
           onClick={route ? onShowSegments : onPlanRoute}
           disabled={loading}
-          className="cursor-pointer rounded-xl bg-black px-5 py-3 text-xs font-black tracking-wider text-white shadow-md transition-all hover:bg-neutral-800 active:scale-95 disabled:opacity-60"
+          className="cursor-pointer rounded-xl px-4 py-2.5 text-xs font-black tracking-wide shadow-md transition-all hover:opacity-90 active:scale-95 disabled:opacity-60"
+          style={{ background: 'var(--text)', color: 'var(--bg)' }}
         >
-          {loading ? (
-            <Loader2 size={16} className="animate-spin" />
-          ) : (
-            'DRIVE NOW'
-          )}
+          {loading ? <Loader2 size={16} className="animate-spin" /> : 'SEGMENTS'}
         </button>
       </div>
 
-      {/* Extended Safety Breakdown */}
+      {/* Footer */}
       {route && (
-        <div className="mt-3 flex items-center justify-between border-t border-neutral-100 pt-2.5 text-xs">
+        <div className="mt-3 flex items-center justify-between" style={{ borderTop: '1px solid var(--border)', paddingTop: '10px' }}>
           <div className="flex items-center gap-2">
             <RiskBadge level={route.overall_risk} />
-            <span className="text-[11px] text-neutral-500 font-medium">
-              {route.duration_min} min drive · {route.segments.length} route segments
+            <span className="text-[11px] font-medium" style={{ color: 'var(--text-3)' }}>
+              {route.duration_min} min · {route.segments.length} segments
             </span>
           </div>
-
           <button
             onClick={onShowSegments}
-            className="flex items-center gap-1 text-[11px] font-bold text-neutral-900 hover:text-orange-600 cursor-pointer"
+            className="flex items-center gap-1 text-[11px] font-bold cursor-pointer transition-colors"
+            style={{ color: 'var(--text-2)' }}
           >
-            {expanded ? 'Hide Details' : 'Details'} <ArrowRight size={12} />
+            {expanded ? 'Hide' : 'Details'} <ArrowRight size={12} />
           </button>
         </div>
       )}
     </div>
   )
 }
-

@@ -1,13 +1,28 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowRight, List, MapPin, MapPinned, Plus } from 'lucide-react'
+import {
+  ArrowRight,
+  List,
+  MapPin,
+  MapPinned,
+  Pause,
+  Play,
+  Plus,
+  RotateCcw,
+  ShieldCheck,
+  Square,
+} from 'lucide-react'
+import L from 'leaflet'
 import { BookingCard } from '../components/BookingCard'
+import { DriveHUD } from '../components/DriveHUD'
 import { HazardForm } from '../components/HazardForm'
 import { MapView } from '../components/map/MapView'
 import { PlaceAutocomplete } from '../components/PlaceAutocomplete'
 import { SegmentPanel } from '../components/SegmentPanel'
 import { SectionLabel } from '../components/ui'
-import { DEFAULT_END, DEFAULT_START, SEVERITY_META } from '../config'
+import { DEFAULT_END, DEFAULT_START, RISK_META, SEVERITY_META } from '../config'
+import { useFatigue } from '../hooks/useFatigue'
 import { useGeolocation } from '../hooks/useGeolocation'
+import { useSimulation } from '../hooks/useSimulation'
 import { api } from '../services/api'
 import type { Hazard, HazardType, Place, RouteResponse, Segment } from '../types'
 
@@ -16,9 +31,11 @@ type PickMode = 'start' | 'end' | 'hazard' | null
 export function Dashboard({
   onOpenEmergency,
   initialReport = false,
+  dark,
 }: {
   onOpenEmergency: () => void
   initialReport?: boolean
+  dark?: boolean
 }) {
   const [start, setStart] = useState<Place | null>(DEFAULT_START)
   const [end, setEnd] = useState<Place | null>(DEFAULT_END)
@@ -35,28 +52,46 @@ export function Dashboard({
   const mapRef = useRef<L.Map | null>(null)
   const geo = useGeolocation()
 
+  // ── simulation ──────────────────────────────────────────────────────────
+  const { sim, start: simStart, pause: simPause, resume: simResume, reset: simReset } = useSimulation(route)
+  const isSimulating = sim.phase === 'running' || sim.phase === 'paused'
+
+  // ── fatigue (Sleep Drive running in background during sim) ───────────────
+  const fatigue = useFatigue()
+
+  // auto-start/stop fatigue with simulation
+  useEffect(() => {
+    if (sim.phase === 'running' && fatigue.phase === 'idle') {
+      fatigue.start()
+    }
+    if (sim.phase === 'idle' && fatigue.phase !== 'idle') {
+      fatigue.stop()
+    }
+  }, [sim.phase]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── route loading ────────────────────────────────────────────────────────
   const loadRoute = useCallback(async (s: Place, e: Place) => {
     setLoading(true)
     setSelected(null)
     setShowList(false)
+    simReset()
     try {
       const r = await api.getRoute([s.lat, s.lon], [e.lat, e.lon])
       setRoute(r)
       const mid = r.geometry[Math.floor(r.geometry.length / 2)]
-      const hz = await api.getHazards(mid[0], mid[1], 9000, 60)
+      const hz = await api.getHazards(mid[0], mid[1], 3000, 8)
       setHazards(hz)
     } catch (err) {
       console.error('route failed', err)
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [simReset])
 
   useEffect(() => {
     loadRoute(DEFAULT_START, DEFAULT_END)
   }, [loadRoute])
 
-  // opened from the navbar's Report Hazard button
   useEffect(() => {
     if (initialReport) {
       openHazardForm()
@@ -69,19 +104,12 @@ export function Dashboard({
     (lat: number, lon: number) => {
       if (pickMode === 'start' || pickMode === 'end') {
         const place: Place = {
-          label: `Pinned location (${lat.toFixed(4)}, ${lon.toFixed(4)})`,
+          label: `Pinned (${lat.toFixed(4)}, ${lon.toFixed(4)})`,
           sublabel: 'Map pin',
-          lat,
-          lon,
-          city: '',
+          lat, lon, city: '',
         }
-        if (pickMode === 'start') {
-          setStart(place)
-          if (end) loadRoute(place, end)
-        } else {
-          setEnd(place)
-          if (start) loadRoute(start, place)
-        }
+        if (pickMode === 'start') { setStart(place); if (end) loadRoute(place, end) }
+        else { setEnd(place); if (start) loadRoute(start, place) }
         setPickMode(null)
       } else if (pickMode === 'hazard') {
         setReportLocation({ lat, lon })
@@ -97,24 +125,16 @@ export function Dashboard({
       const fix = await geo.getPosition()
       if (!fix) return
       const place: Place = { label: 'My location', sublabel: 'Current position', lat: fix.lat, lon: fix.lon, city: '' }
-      if (which === 'start') {
-        setStart(place)
-        if (end) loadRoute(place, end)
-      } else {
-        setEnd(place)
-        if (start) loadRoute(start, place)
-      }
+      if (which === 'start') { setStart(place); if (end) loadRoute(place, end) }
+      else { setEnd(place); if (start) loadRoute(start, place) }
     },
     [geo, end, start, loadRoute],
   )
 
   const openHazardForm = useCallback((opts?: { lat?: number; lon?: number; type?: HazardType; segment?: Segment }) => {
     setReportPreset(opts?.type ? { type: opts.type } : undefined)
-    if (opts?.lat != null && opts?.lon != null) {
-      setReportLocation({ lat: opts.lat, lon: opts.lon })
-    } else {
-      setReportLocation(null)
-    }
+    if (opts?.lat != null && opts?.lon != null) setReportLocation({ lat: opts.lat, lon: opts.lon })
+    else setReportLocation(null)
     setReportOpen(true)
   }, [])
 
@@ -139,158 +159,314 @@ export function Dashboard({
 
   const segments = route?.segments ?? []
 
+  // ── start demo ──────────────────────────────────────────────────────────
+  const handleStartDemo = useCallback(() => {
+    if (!route) return
+    setSelected(null)
+    setShowList(false)
+    simStart()
+  }, [route, simStart])
+
   return (
-    <div className="relative h-screen w-full overflow-hidden bg-neutral-100">
-      {/* Map backdrop canvas */}
+    <div className="relative h-screen w-full overflow-hidden" style={{ background: 'var(--bg-2)' }}>
+
+      {/* ── Map ── */}
       <div className="absolute inset-0 z-0">
         <MapView
           route={route}
           hazards={hazards}
           selectedSegment={selected}
-          onSelectSegment={(s) => {
-            setSelected(s)
-            setShowList(false)
-          }}
+          vehiclePosition={sim.position}
+          currentSegmentId={sim.currentSegment?.id ?? null}
+          onSelectSegment={(s) => { if (!isSimulating) { setSelected(s); setShowList(false) } }}
           hazardPickMode={pickMode === 'hazard'}
           onPickLocation={onPickMapLocation}
-          onReady={(m) => {
-            mapRef.current = m
-          }}
+          onReady={(m) => { mapRef.current = m }}
           onFullscreen={toggleFullscreen}
           isFullscreen={fullscreen}
           startLabel={start?.name ?? start?.label ?? 'Start'}
           endLabel={end?.name ?? end?.label ?? 'Destination'}
+          dark={dark}
         />
       </div>
 
-      {/* Left hero overlay (Responsive: desktop floating left, mobile top card) */}
-      <div className="pointer-events-none absolute inset-x-0 top-16 z-[1050] overflow-y-auto overflow-x-hidden scrollbar-hide p-3 md:inset-y-0 md:left-0 md:top-0 md:w-[420px] md:bg-gradient-to-r md:from-white/97 md:via-white/82 md:to-transparent md:p-6 md:pt-20">
-        <div className="pointer-events-auto space-y-4">
-          {/* Main Headline per Uber Reference Image */}
-          <div className="rounded-2xl bg-white/90 p-5 shadow-lg backdrop-blur-md md:bg-transparent md:p-0 md:shadow-none">
-            <h1 className="text-4xl font-black leading-[1.05] tracking-tight text-neutral-900 sm:text-5xl lg:text-6xl">
-              Go anywhere
-              <br />
-              with <span className="text-orange-500">NexRoad.</span>
-            </h1>
-            <p className="mt-3 text-sm font-semibold leading-relaxed text-neutral-500 sm:text-base">
-              Choose your exact pickup time up to 90 days in advance.
-            </p>
+      {/* ═══════════════════════════════════════════════════════════════════
+          LEFT PANEL — pre-drive planning / demo controls
+          Shown when NOT simulating
+      ═══════════════════════════════════════════════════════════════════ */}
+      {!isSimulating && sim.phase !== 'finished' && (
+        <div
+          className="pointer-events-auto absolute inset-x-0 top-0 z-[1050] overflow-y-auto overflow-x-hidden scrollbar-hide p-3 md:inset-y-0 md:left-0 md:w-[380px] md:p-4 md:pt-4"
+          style={{
+            background: 'var(--surface)',
+            borderRight: '1px solid var(--border)',
+            boxShadow: 'var(--shadow-xl)',
+          }}
+        >
+          <div className="pointer-events-auto space-y-3">
 
-            {/* Location pickers capsule */}
-            <div className="mt-5 flex items-center gap-2">
-              <div className="flex-1 space-y-2">
+            {/* 1. Hero Card */}
+            <div
+              className="rounded-2xl p-4 shadow-sm"
+              style={{ background: 'var(--bg-2)', border: '1px solid var(--border)' }}
+            >
+              <h1 className="text-2xl font-black leading-[1.1] tracking-tight" style={{ color: 'var(--text)' }}>
+                Know the road.<br />
+                <span style={{ color: 'var(--orange)' }}>Before you drive it.</span>
+              </h1>
+              <p className="mt-1.5 text-xs font-medium leading-relaxed" style={{ color: 'var(--text-3)' }}>
+                Segment-level safety scores. Real-time driver monitoring. Contextual risk fusion.
+              </p>
+
+              {/* Glowing visual Graphic Box (Orb/Waveform) */}
+              <div className="relative mt-3 h-36 w-full overflow-hidden rounded-xl bg-neutral-950 flex items-center justify-center border border-neutral-800 shadow-inner">
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-fuchsia-600/30 via-rose-600/10 to-transparent animate-pulse" />
+                <div className="relative flex items-center justify-center">
+                  <div className="absolute h-28 w-28 rounded-full border border-fuchsia-500/20 animate-[ping_3s_linear_infinite]" />
+                  <div className="absolute h-20 w-20 rounded-full border border-rose-500/30 animate-[spin_8s_linear_infinite]" />
+                  <div className="absolute h-14 w-14 rounded-full border border-orange-500/40" />
+                  <div className="h-10 w-10 rounded-full bg-gradient-to-tr from-rose-500 via-purple-500 to-indigo-500 shadow-[0_0_20px_rgba(236,72,153,0.8)] animate-pulse flex items-center justify-center">
+                    <div className="h-3.5 w-3.5 rounded-full bg-white/90 shadow-inner" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 2. START DEMO DRIVE Button */}
+            {route && (
+              <button
+                onClick={handleStartDemo}
+                disabled={loading}
+                className="flex w-full cursor-pointer items-center justify-center gap-2.5 rounded-2xl py-3.5 text-sm font-black text-white shadow-xl transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-50"
+                style={{ background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)' }}
+              >
+                <Play size={16} fill="white" />
+                START DEMO DRIVE
+              </button>
+            )}
+
+            {/* 3. Booking / Route Stats Card */}
+            <div className="hidden md:block">
+              <BookingCard
+                route={route}
+                loading={loading}
+                onPlanRoute={() => start && end && loadRoute(start, end)}
+                onShowSegments={() => { setShowList((v) => !v); setSelected(null) }}
+                expanded={showList}
+              />
+            </div>
+
+            {/* 4. Location Pickers */}
+            <div
+              className="rounded-2xl p-3 shadow-sm"
+              style={{ background: 'var(--bg-2)', border: '1px solid var(--border)' }}
+            >
+              <div className="space-y-2">
                 <PlaceAutocomplete
                   value={start}
-                  placeholder="E.g. Bandra West, Mumbai"
+                  placeholder="Start — e.g. Bandra West"
                   variant="start"
-                  onSelect={(p) => {
-                    setStart(p)
-                    if (end) loadRoute(p, end)
-                  }}
+                  onSelect={(p) => { setStart(p); if (end) loadRoute(p, end) }}
                   onUseMyLocation={() => useMyLocationForPlace('start')}
                   onPickOnMap={() => setPickMode('start')}
                   picking={pickMode === 'start'}
                 />
                 <PlaceAutocomplete
                   value={end}
-                  placeholder="E.g. Malad West, Mumbai"
+                  placeholder="Destination — e.g. Malad West"
                   variant="end"
-                  onSelect={(p) => {
-                    setEnd(p)
-                    if (start) loadRoute(start, p)
-                  }}
+                  onSelect={(p) => { setEnd(p); if (start) loadRoute(start, p) }}
                   onUseMyLocation={() => useMyLocationForPlace('end')}
                   onPickOnMap={() => setPickMode('end')}
                   picking={pickMode === 'end'}
                 />
               </div>
-              <button
-                title="Calculate route & ride options"
-                onClick={() => start && end && loadRoute(start, end)}
-                className="flex h-12 w-12 cursor-pointer items-center justify-center rounded-full bg-black text-white shadow-md transition-all hover:bg-neutral-800 active:scale-95 shrink-0"
+            </div>
+
+            {/* 5. Live Road Hazards Widget */}
+            {hazards.length > 0 && (
+              <div
+                className="hidden md:block rounded-2xl p-3"
+                style={{ background: 'var(--bg-2)', border: '1px solid var(--border)' }}
               >
-                <ArrowRight size={20} />
+                <div className="mb-2 flex items-center justify-between">
+                  <SectionLabel>Live road hazards</SectionLabel>
+                  <button
+                    onClick={() => openHazardForm()}
+                    className="flex cursor-pointer items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold transition-colors"
+                    style={{ background: 'var(--surface)', color: 'var(--text-2)', border: '1px solid var(--border)' }}
+                  >
+                    <Plus size={12} /> Report
+                  </button>
+                </div>
+                <ul className="space-y-1.5">
+                  {hazards.slice(0, 3).map((h) => (
+                    <li key={h.id} className="flex items-center justify-between gap-2 text-xs">
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: SEVERITY_META[h.severity].color }} />
+                        <span className="truncate font-semibold" style={{ color: 'var(--text)' }}>{h.description}</span>
+                        {h.source === 'user' && (
+                          <span className="rounded px-1.5 py-0.5 text-[9px] font-extrabold text-white" style={{ background: 'var(--text)' }}>YOU</span>
+                        )}
+                      </span>
+                      <span className="shrink-0 text-[10px] font-medium" style={{ color: 'var(--text-4)' }}>
+                        {h.distance_m != null ? `${Math.round(h.distance_m)} m` : ''}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════
+          RIGHT PANEL — DriveHUD during simulation
+      ═══════════════════════════════════════════════════════════════════ */}
+      {isSimulating && (
+        <div className="pointer-events-none absolute right-0 top-16 z-[1050] flex max-h-[calc(100vh-4.5rem)] w-[300px] flex-col overflow-y-auto overflow-x-hidden scrollbar-hide p-3">
+          <DriveHUD
+            currentSegment={sim.currentSegment}
+            nextSegment={sim.nextSegment}
+            progress={sim.progress}
+            demoPhase={sim.demoPhase}
+            fatigueState={fatigue.state}
+            fatiguePhase={fatigue.phase}
+            onOpenEmergency={onOpenEmergency}
+          />
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════
+          Simulation controls bar (top centre, during sim)
+      ═══════════════════════════════════════════════════════════════════ */}
+      {isSimulating && (
+        <div className="absolute top-20 left-1/2 z-[1060] -translate-x-1/2">
+          <div
+            className="flex items-center gap-2 rounded-2xl px-4 py-2.5 shadow-xl"
+            style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+          >
+            <span className="flex items-center gap-1.5 text-xs font-bold" style={{ color: 'var(--orange)' }}>
+              <span className="h-2 w-2 rounded-full pulse-dot" style={{ background: 'var(--orange)' }} />
+              LIVE DEMO
+            </span>
+            <div className="h-4 w-px" style={{ background: 'var(--border)' }} />
+            <span className="text-xs font-semibold" style={{ color: 'var(--text-3)' }}>
+              {Math.round(sim.progress * 100)}% complete
+            </span>
+            <div className="h-4 w-px" style={{ background: 'var(--border)' }} />
+            {sim.phase === 'running'
+              ? (
+                <button
+                  onClick={simPause}
+                  className="flex cursor-pointer items-center gap-1 rounded-full px-3 py-1 text-xs font-bold transition-colors"
+                  style={{ background: 'var(--bg-2)', color: 'var(--text)' }}
+                >
+                  <Pause size={12} /> Pause
+                </button>
+              )
+              : (
+                <button
+                  onClick={simResume}
+                  className="flex cursor-pointer items-center gap-1 rounded-full px-3 py-1 text-xs font-bold transition-colors"
+                  style={{ background: 'var(--orange)', color: '#fff' }}
+                >
+                  <Play size={12} /> Resume
+                </button>
+              )
+            }
+            <button
+              onClick={() => { simReset(); fatigue.stop() }}
+              className="flex cursor-pointer items-center gap-1 rounded-full px-3 py-1 text-xs font-bold transition-colors"
+              style={{ background: 'var(--bg-3)', color: 'var(--text-2)' }}
+            >
+              <RotateCcw size={12} /> Stop
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════
+          Finished state
+      ═══════════════════════════════════════════════════════════════════ */}
+      {sim.phase === 'finished' && (
+        <div className="absolute inset-0 z-[1200] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div
+            className="rounded-3xl p-8 text-center shadow-2xl w-80"
+            style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+          >
+            <div className="mb-3 text-4xl">🏁</div>
+            <h2 className="text-xl font-black" style={{ color: 'var(--text)' }}>Drive Complete</h2>
+            <p className="mt-1 text-sm" style={{ color: 'var(--text-3)' }}>
+              Route of {route?.distance_km.toFixed(1)} km · Safety: {route?.overall_score}/100
+            </p>
+            <div className="mt-5 flex gap-2">
+              <button
+                onClick={() => { simReset(); fatigue.stop() }}
+                className="flex-1 rounded-2xl py-3 text-sm font-bold text-white cursor-pointer"
+                style={{ background: 'var(--orange)' }}
+              >
+                <RotateCcw size={14} className="inline mr-1" />
+                Reset
+              </button>
+              <button
+                onClick={onOpenEmergency}
+                className="flex-1 rounded-2xl py-3 text-sm font-bold text-white cursor-pointer"
+                style={{ background: '#dc2626' }}
+              >
+                🚨 Emergency
               </button>
             </div>
           </div>
-
-          {/* Desktop Floating Booking Card */}
-          <div className="hidden md:block">
-            <BookingCard
-              route={route}
-              loading={loading}
-              onPlanRoute={() => start && end && loadRoute(start, end)}
-              onShowSegments={() => {
-                setShowList((v) => !v)
-                setSelected(null)
-              }}
-              expanded={showList}
-            />
-          </div>
-
-          {/* Nearby hazards widget */}
-          {hazards.length > 0 && (
-            <div className="hidden md:block w-[380px] max-w-full rounded-2xl border border-neutral-200/80 bg-white/95 p-4 shadow-lg backdrop-blur-md">
-              <div className="mb-2 flex items-center justify-between">
-                <SectionLabel>Live road hazards</SectionLabel>
-                <button
-                  onClick={() => openHazardForm()}
-                  className="flex cursor-pointer items-center gap-1 rounded-full bg-neutral-100 px-2.5 py-1 text-[11px] font-bold text-neutral-700 hover:bg-neutral-200"
-                >
-                  <Plus size={12} /> Report
-                </button>
-              </div>
-              <ul className="space-y-1.5">
-                {hazards.slice(0, 3).map((h) => (
-                  <li key={h.id} className="flex items-center justify-between gap-2 text-xs">
-                    <span className="flex min-w-0 items-center gap-2">
-                      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: SEVERITY_META[h.severity].color }} />
-                      <span className="truncate font-semibold text-neutral-800">{h.description}</span>
-                      {h.source === 'user' && (
-                        <span className="rounded bg-black px-1.5 py-0.5 text-[9px] font-extrabold text-white">YOU</span>
-                      )}
-                    </span>
-                    <span className="shrink-0 text-[10px] font-medium text-neutral-400">
-                      {h.distance_m != null ? `${Math.round(h.distance_m)} m` : ''}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
         </div>
-      </div>
+      )}
 
-      {/* Mobile Floating Bottom Bar for Booking (Fixed at bottom on small screens) */}
-      <div className="fixed inset-x-4 bottom-4 z-[1050] md:hidden space-y-2">
-        <BookingCard
-          route={route}
-          loading={loading}
-          onPlanRoute={() => start && end && loadRoute(start, end)}
-          onShowSegments={() => {
-            setShowList((v) => !v)
-            setSelected(null)
-          }}
-          expanded={showList}
-        />
-        <button
-          onClick={onOpenEmergency}
-          className="flex w-full items-center justify-center gap-2 rounded-xl bg-red-600 py-2.5 text-xs font-black text-white shadow-lg cursor-pointer"
+      {/* ═══════════════════════════════════════════════════════════════════
+          Mobile bottom bar (pre-drive only)
+      ═══════════════════════════════════════════════════════════════════ */}
+      {!isSimulating && sim.phase !== 'finished' && (
+        <div className="fixed inset-x-4 bottom-4 z-[1050] md:hidden space-y-2">
+          <BookingCard
+            route={route}
+            loading={loading}
+            onPlanRoute={() => start && end && loadRoute(start, end)}
+            onShowSegments={() => { setShowList((v) => !v); setSelected(null) }}
+            expanded={showList}
+          />
+          {route && (
+            <button
+              onClick={handleStartDemo}
+              className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl py-3 text-sm font-black text-white shadow-xl"
+              style={{ background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)' }}
+            >
+              <Play size={14} fill="white" /> START DEMO DRIVE
+            </button>
+          )}
+          <button
+            onClick={onOpenEmergency}
+            className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-black text-white shadow-lg cursor-pointer"
+            style={{ background: '#dc2626' }}
+          >
+            🚨 SOS Emergency
+          </button>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════
+          Route segment list drawer (pre-drive)
+      ═══════════════════════════════════════════════════════════════════ */}
+      {showList && route && !isSimulating && (
+        <aside
+          className="slide-in-right absolute right-4 top-16 bottom-24 z-[1050] flex w-[320px] max-w-[calc(100%-2rem)] flex-col overflow-hidden rounded-2xl shadow-2xl"
+          style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
         >
-          🚨 SOS Emergency
-        </button>
-      </div>
-
-      {/* Route segment list drawer */}
-      {showList && route && (
-        <aside className="slide-in-right absolute right-3 top-20 z-[1100] flex max-h-[calc(100%-6rem)] w-[320px] max-w-[calc(100%-1.5rem)] flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white/95 shadow-2xl backdrop-blur-md">
-          <div className="flex items-center justify-between border-b border-neutral-100 p-4">
+          <div className="flex items-center justify-between p-4" style={{ borderBottom: '1px solid var(--border)' }}>
             <div className="flex items-center gap-2">
-              <List size={16} className="text-neutral-500" />
+              <List size={16} style={{ color: 'var(--text-3)' }} />
               <SectionLabel>Route breakdown</SectionLabel>
             </div>
-            <button onClick={() => setShowList(false)} className="cursor-pointer text-neutral-400 hover:text-neutral-900">
+            <button onClick={() => setShowList(false)} className="cursor-pointer" style={{ color: 'var(--text-4)' }}>
               <ArrowRight size={16} className="rotate-180" />
             </button>
           </div>
@@ -298,18 +474,21 @@ export function Dashboard({
             {segments.map((seg, i) => (
               <button
                 key={seg.id}
-                onClick={() => {
-                  setSelected(seg)
-                  setShowList(false)
-                }}
-                className="flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-left hover:bg-neutral-100"
+                onClick={() => { setSelected(seg); setShowList(false) }}
+                className="flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors"
+                style={{ ':hover': { background: 'var(--bg-2)' } } as React.CSSProperties}
+                onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-2)')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = '')}
               >
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-black text-white" style={{ backgroundColor: seg.risk_color }}>
+                <span
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-black text-white"
+                  style={{ backgroundColor: seg.risk_color }}
+                >
                   {i + 1}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-bold text-neutral-900">{seg.name}</span>
-                  <span className="block text-[11px] font-semibold text-neutral-400">{seg.distance_km.toFixed(1)} km</span>
+                  <span className="block truncate text-sm font-bold" style={{ color: 'var(--text)' }}>{seg.name}</span>
+                  <span className="block text-[11px] font-semibold" style={{ color: 'var(--text-4)' }}>{seg.distance_km.toFixed(1)} km</span>
                 </span>
                 <span className="text-sm font-black" style={{ color: seg.risk_color }}>
                   {seg.safety_score}
@@ -318,18 +497,15 @@ export function Dashboard({
             ))}
           </div>
           {worst && (
-            <div className="border-t border-neutral-100 p-3">
-              <div className="rounded-xl bg-red-50 p-3">
+            <div className="p-3" style={{ borderTop: '1px solid var(--border)' }}>
+              <div className="rounded-xl p-3" style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)' }}>
                 <div className="text-[10px] font-extrabold uppercase tracking-widest text-red-500">Most dangerous segment</div>
                 <div className="mt-0.5 flex items-center justify-between">
-                  <span className="text-xs font-bold text-neutral-800">{worst.name}</span>
+                  <span className="text-xs font-bold" style={{ color: 'var(--text)' }}>{worst.name}</span>
                   <span className="text-lg font-black text-red-500">{worst.safety_score}</span>
                 </div>
                 <button
-                  onClick={() => {
-                    setSelected(worst)
-                    setShowList(false)
-                  }}
+                  onClick={() => { setSelected(worst); setShowList(false) }}
                   className="mt-2 flex w-full cursor-pointer items-center justify-center gap-1 rounded-lg bg-red-500 py-1.5 text-xs font-bold text-white hover:bg-red-600"
                 >
                   <MapPinned size={13} /> Inspect Segment Risk
@@ -340,8 +516,8 @@ export function Dashboard({
         </aside>
       )}
 
-      {/* Segment explanation panel */}
-      {selected && (
+      {/* Segment panel (pre-drive only) */}
+      {selected && !isSimulating && (
         <SegmentPanel
           segment={selected}
           onClose={() => setSelected(null)}
@@ -360,25 +536,23 @@ export function Dashboard({
         defaultLocation={reportLocation}
         preset={reportPreset}
         picking={pickMode === 'hazard'}
-        onPickFromMap={() => {
-          setReportOpen(false)
-          setPickMode('hazard')
-        }}
-        onUseMyLocation={async () => {
-          const fix = await geo.getPosition()
-          if (fix) setReportLocation({ lat: fix.lat, lon: fix.lon })
-        }}
+        onPickFromMap={() => { setReportOpen(false); setPickMode('hazard') }}
+        onUseMyLocation={async () => { const fix = await geo.getPosition(); if (fix) setReportLocation({ lat: fix.lat, lon: fix.lon }) }}
         onSubmitted={onSubmitted}
       />
 
       {pickMode === 'hazard' && (
         <div className="absolute bottom-6 left-1/2 z-[1060] -translate-x-1/2">
-          <div className="flex items-center gap-2 rounded-full bg-neutral-900 px-5 py-3 text-xs font-bold text-white shadow-2xl">
-            <MapPin size={14} className="text-orange-400" />
+          <div
+            className="flex items-center gap-2 rounded-full px-5 py-3 text-xs font-bold text-white shadow-2xl"
+            style={{ background: 'var(--text)' }}
+          >
+            <MapPin size={14} style={{ color: 'var(--orange)' }} />
             Click on the map to place hazard
             <button
               onClick={() => setPickMode(null)}
-              className="ml-2 cursor-pointer rounded-full bg-white/20 px-2.5 py-0.5 text-[10px] hover:bg-white/30"
+              className="ml-2 cursor-pointer rounded-full px-2.5 py-0.5 text-[10px]"
+              style={{ background: 'rgba(255,255,255,0.15)' }}
             >
               Cancel
             </button>
@@ -388,4 +562,3 @@ export function Dashboard({
     </div>
   )
 }
-

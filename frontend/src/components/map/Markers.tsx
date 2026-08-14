@@ -7,17 +7,17 @@ import type { Hazard, Hospital } from '../../types'
 // Icon builders
 // ---------------------------------------------------------------------------
 
-export function startIcon(name = 'Sutter Ave') {
+export function startIcon(name = 'Bandra West') {
   return L.divIcon({
     className: '',
     html: `
       <div class="pin-wrap">
-        <span class="ripple"></span>
-        <span class="ripple r2"></span>
-        <div class="pin-core" style="background:#FF5A1F; border:3px solid #fff;">
+        <span class="ripple" style="border-color: rgba(59,130,246,0.6);"></span>
+        <span class="ripple r2" style="border-color: rgba(59,130,246,0.4);"></span>
+        <div class="pin-core" style="background:#3b82f6; border:3px solid #fff; box-shadow:0 0 16px rgba(59,130,246,0.6);">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="#fff"><path d="M12 2L19 21L12 17L5 21L12 2Z"/></svg>
         </div>
-        <div class="pin-label" style="position:absolute; bottom:-22px; left:50%; transform:translateX(-50%); font-size:11px; font-weight:800; color:#111; background:#fff; padding:1px 7px; border-radius:6px; box-shadow:0 2px 6px rgba(0,0,0,0.15); white-space:nowrap;">
+        <div class="pin-label" style="position:absolute; bottom:-22px; left:50%; transform:translateX(-50%); font-size:11px; font-weight:800; color:#111; background:#fff; padding:1px 7px; border-radius:6px; box-shadow:0 2px 6px rgba(0,0,0,0.2); white-space:nowrap;">
           ${name}
         </div>
       </div>`,
@@ -27,17 +27,17 @@ export function startIcon(name = 'Sutter Ave') {
   })
 }
 
-export function endIcon(name = 'Rockaway Ave') {
+export function endIcon(name = 'Malad West') {
   return L.divIcon({
     className: '',
     html: `
       <div class="dot-wrap">
-        <span class="dot-ripple" style="border-color: rgba(255, 90, 31, 0.6);"></span>
-        <span class="dot-core" style="background:#FF5A1F; border:3px solid #fff;"></span>
+        <span class="dot-ripple" style="border-color: rgba(59, 130, 246, 0.6);"></span>
+        <span class="dot-core" style="background:#2563eb; border:3px solid #fff; box-shadow:0 0 16px rgba(37,99,235,0.6);"></span>
       </div>
       <div style="position:absolute; left:50%; top:-42px; transform:translateX(-50%); text-align:center;">
-        <div class="dest-tag" style="background:#fff; border:1.5px solid #FF5A1F; color:#FF5A1F; font-size:9px; font-weight:800; tracking:0.1em; padding:2px 8px; border-radius:6px; box-shadow:0 3px 8px rgba(0,0,0,0.12);">DESTINATION</div>
-        <div style="font-size:11px; font-weight:800; color:#111; background:#fff; padding:1px 6px; border-radius:5px; margin-top:2px; box-shadow:0 2px 6px rgba(0,0,0,0.1); white-space:nowrap;">${name}</div>
+        <div class="dest-tag" style="background:#2563eb; border:1.5px solid #fff; color:#fff; font-size:9px; font-weight:900; tracking:0.1em; padding:2px 8px; border-radius:6px; box-shadow:0 3px 8px rgba(0,0,0,0.25);">DESTINATION</div>
+        <div style="font-size:11px; font-weight:800; color:#111; background:#fff; padding:1px 6px; border-radius:5px; margin-top:2px; box-shadow:0 2px 6px rgba(0,0,0,0.15); white-space:nowrap;">${name}</div>
       </div>`,
     iconSize: [30, 60],
     iconAnchor: [15, 30],
@@ -47,16 +47,19 @@ export function endIcon(name = 'Rockaway Ave') {
 
 
 export function hazardIcon(type: Hazard['type'], severity: Hazard['severity'], isUser: boolean) {
-  const color = severity === 'high' ? SEVERITY_META.high.color : severity === 'medium' ? SEVERITY_META.medium.color : HAZARD_ICON_COLOR[type]
+  const color = severity === 'high' ? '#ef4444' : severity === 'medium' ? '#f97316' : '#eab308'
   return L.divIcon({
     className: '',
     html: `
-      <div class="hazard-pin ${isUser ? 'user' : ''}" style="background:${color};">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"><path d="M12 7v6"/><circle cx="12" cy="17" r="1" fill="#fff" stroke="none"/></svg>
+      <div style="position:relative;width:30px;height:30px;display:flex;align-items:center;justify-content:center;">
+        <div style="position:absolute;inset:0;border-radius:10px;background:${color}22;border:1.5px solid ${color};box-shadow:0 0 12px ${color}55;"></div>
+        <div style="width:20px;height:20px;border-radius:6px;background:${color};display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.3);position:relative;z-index:2;">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+        </div>
       </div>`,
-    iconSize: [26, 26],
-    iconAnchor: [13, 26],
-    popupAnchor: [0, -22],
+    iconSize: [30, 30],
+    iconAnchor: [15, 15],
+    popupAnchor: [0, -18],
   })
 }
 
@@ -64,12 +67,32 @@ export function hospitalIcon() {
   return L.divIcon({
     className: '',
     html: `
-      <div class="hospital-pin">
+      <div className="hospital-pin">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M9 4h6v6h6v4h-6v6H9v-6H3v-4h6z"/></svg>
       </div>`,
     iconSize: [28, 28],
     iconAnchor: [14, 28],
     popupAnchor: [0, -26],
+  })
+}
+
+export function vehicleIcon() {
+  return L.divIcon({
+    className: '',
+    html: `
+      <div style="position:relative;width:52px;height:52px;display:flex;align-items:center;justify-content:center;">
+        <!-- Glowing outer electric-blue circle line (Reference Match) -->
+        <div style="position:absolute;width:48px;height:48px;border-radius:50%;border:1.5px solid rgba(59,130,246,0.85);background:rgba(15,23,42,0.45);backdrop-filter:blur(6px);box-shadow:0 0 18px rgba(59,130,246,0.4);"></div>
+        <!-- 3D Shaded Arrowhead Pointer (Exact reference match) -->
+        <svg width="28" height="28" viewBox="0 0 32 32" style="position:relative;z-index:2;filter:drop-shadow(0 3px 6px rgba(0,0,0,0.5));">
+          <!-- Left shaded face -->
+          <polygon points="16,2 4,28 16,22" fill="#ffffff" />
+          <!-- Right shaded face -->
+          <polygon points="16,2 16,22 28,28" fill="#dbeafe" />
+        </svg>
+      </div>`,
+    iconSize: [52, 52],
+    iconAnchor: [26, 26],
   })
 }
 
