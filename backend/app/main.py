@@ -18,8 +18,11 @@ response always declares whether data is LIVE or DEMO.
 """
 from __future__ import annotations
 
-from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
+import time
+
+from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.config import RISK_LEVELS, SUPPORTED_LANGUAGES, SafetyWeights, settings
 from app.models import (
@@ -48,13 +51,52 @@ from app.services.ai import assistant_reply
 from app.services.emergency import activate_emergency
 from app.services.fatigue import FatigueEngine
 from app.services.elevenlabs import elevenlabs_service
+from app.services.http import Log
 from app.services.groq import groq_service
 from app.services.intent import classify_intent, merge_intent, target_language_for
+from app.services.rate_limit import RateLimiter
 from app.services.safety_engine import SafetyEngine, overall_score
 from app.services.sarvam import sarvam_service
 from app.services.segmentation import segment_route
 
 app = FastAPI(title="RoadSafe AI", version="0.1.0")
+
+# --------------------------------------------------------------------------
+# Rate limiting — protect the AI-provider budget from misbehaving clients.
+# --------------------------------------------------------------------------
+_ai_limiter = RateLimiter(30, 60, "ai")
+_tts_limiter = RateLimiter(40, 60, "tts")
+_stt_limiter = RateLimiter(30, 60, "stt")
+_event_limiter = RateLimiter(120, 60, "events")
+_emergency_limiter = RateLimiter(5, 60, "emergency")
+_token_limiter = RateLimiter(10, 60, "elevenlabs")
+
+
+def _limiter_for(path: str) -> RateLimiter | None:
+    if path == "/api/elevenlabs/token":
+        return _token_limiter
+    if path == "/api/emergency/activate":
+        return _emergency_limiter
+    if path == "/api/fatigue/chat":
+        return _ai_limiter
+    if path == "/api/fatigue/audio/transcribe":
+        return _stt_limiter
+    if path == "/api/fatigue/tts":
+        return _tts_limiter
+    if path.startswith("/api/fatigue/"):
+        return _event_limiter
+    return None
+
+
+@app.middleware("http")
+async def rate_limit_ai(request: Request, call_next):
+    limiter = _limiter_for(request.url.path)
+    if limiter is not None:
+        try:
+            limiter.check(request)
+        except HTTPException as exc:
+            return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+    return await call_next(request)
 
 app.add_middleware(
     CORSMiddleware,
@@ -68,6 +110,21 @@ hospitals_svc = HospitalProvider()
 safety = SafetyEngine()
 fatigue = FatigueEngine()
 
+# Startup banner — provider availability only, never keys.
+Log.info(
+    "main",
+    "providers: groq=%s sarvam=%s elevenlabs=%s tts=%s default_language=%s"
+    % (
+        settings.groq_chat_model if settings.has_groq else "scripted fallback",
+        "configured" if settings.has_sarvam else "browser fallback",
+        "configured" if settings.has_elevenlabs else "off",
+        settings.tts_provider,
+        settings.default_language,
+    ),
+)
+
+_APP_STARTED = time.time()
+
 
 # --------------------------------------------------------------------------
 # Health & config
@@ -75,7 +132,18 @@ fatigue = FatigueEngine()
 
 @app.get("/api/health")
 async def health() -> dict:
-    return {"status": "ok", "service": "roadsafe-ai-backend"}
+    return {
+        "status": "ok",
+        "service": "roadsafe-ai-backend",
+        "uptime_s": round(time.time() - _APP_STARTED, 1),
+        "providers": {
+            "groq": "configured" if settings.has_groq else "scripted fallback",
+            "sarvam": "configured" if settings.has_sarvam else "browser fallback",
+            "elevenlabs": "configured" if settings.has_elevenlabs else "off",
+            "tts": settings.tts_provider,
+        },
+        "active_sessions": fatigue.session_count,
+    }
 
 
 @app.get("/api/config", response_model=ConfigResponse)
@@ -512,8 +580,12 @@ async def get_elevenlabs_token():
             )
             response.raise_for_status()
             return response.json()
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+        except Exception as exc:  # never echo the upstream message — it can carry secrets
+            Log.warn("elevenlabs", f"token endpoint failed ({type(exc).__name__})")
+            raise HTTPException(
+                status_code=502,
+                detail="ElevenLabs token service unavailable — try again shortly.",
+            ) from exc
 
 # --------------------------------------------------------------------------
 # Emergency

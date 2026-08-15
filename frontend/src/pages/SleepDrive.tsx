@@ -3,8 +3,11 @@ import { useRef } from "react";
 import {
   ArrowRight,
   BrainCircuit,
+  ChevronDown,
+  ChevronUp,
   Gauge,
   Languages,
+  ListChecks,
   Mic,
   MicOff,
   Music4,
@@ -102,7 +105,7 @@ function DriverMessageBox({ onSend }: { onSend: (text: string) => void }) {
           }
         }}
         placeholder="Or type a message to Routiq…"
-        className="min-w-0 flex-1 rounded-full border border-neutral-300 bg-white px-3 py-1.5 text-xs text-neutral-800 outline-none focus:border-neutral-400"
+        className="min-w-0 flex-1 rounded-full border border-neutral-300 bg-white px-3 py-2 text-xs text-neutral-800 outline-none focus:border-neutral-400"
       />
       <button
         onClick={() => {
@@ -110,7 +113,7 @@ function DriverMessageBox({ onSend }: { onSend: (text: string) => void }) {
           onSend(value.trim());
           setValue("");
         }}
-        className="flex shrink-0 cursor-pointer items-center gap-1 rounded-full bg-neutral-900 px-3 py-1.5 text-xs font-bold text-white hover:bg-neutral-700"
+        className="flex min-h-[40px] shrink-0 cursor-pointer items-center gap-1 rounded-full bg-neutral-900 px-4 py-2 text-xs font-bold text-white hover:bg-neutral-700"
       >
         Send <ArrowRight size={12} />
       </button>
@@ -132,13 +135,13 @@ function Stat({
   trend?: "up" | "down" | "flat";
 }) {
   return (
-    <div className="flex-1 rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-center shadow-sm">
+    <div className="flex-1 rounded-2xl border border-white/60 bg-white/70 px-2 py-3 text-center shadow-sm backdrop-blur-sm sm:px-4">
       <div className="text-[9px] font-bold uppercase tracking-[0.18em] text-neutral-400">
         {label}
       </div>
       <div className="mt-0.5 flex items-baseline justify-center gap-1">
         <span
-          className="text-2xl font-black tabular-nums tracking-tight"
+          className="text-xl font-black tabular-nums tracking-tight sm:text-2xl"
           style={{ color }}
         >
           {value}
@@ -165,6 +168,7 @@ export function SleepDrive({
   onGoEmergency: () => void;
 }) {
   const [showSettings, setShowSettings] = useState(false);
+  const [showDetails, setShowDetails] = useState(false); // mobile detail panel
   const waiting = f.phase === "waiting";
   const analyzing = f.phase === "analyzing";
   const quiet = f.phase === "quiet";
@@ -203,15 +207,15 @@ export function SleepDrive({
   const active = f.phase !== "idle";
 
   return (
-    <div className="flex min-h-screen flex-col bg-neutral-50 pt-20 sm:pt-24">
+    <div className="flex min-h-screen flex-col bg-gradient-to-b from-neutral-50 via-neutral-50 to-orange-50/40 pb-28 pt-16 sm:pt-20 lg:pb-8">
       {/* ── active session banner ── */}
       {active && (
-        <div className="mx-auto w-full max-w-6xl px-4 pt-4">
-          <div className="mb-2 flex flex-wrap items-center gap-2">
+        <div className="mx-auto w-full max-w-6xl px-3 sm:px-4 lg:pt-4">
+          <div className="mb-2 flex items-center gap-2 overflow-x-auto pb-1 lg:flex-wrap lg:overflow-visible">
             {/* conversation language selector */}
-            <label className="flex items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs font-semibold text-neutral-700 shadow-sm">
+            <label className="flex shrink-0 items-center gap-2 rounded-xl border border-neutral-200 bg-white/80 px-3 py-2 text-xs font-semibold text-neutral-700 shadow-sm backdrop-blur">
               <Languages size={14} className="text-neutral-400" />
-              Conversation language
+              <span className="hidden sm:inline">Conversation language</span>
               <select
                 value={f.language}
                 onChange={(e) => f.setLanguage(e.target.value)}
@@ -225,23 +229,33 @@ export function SleepDrive({
               </select>
             </label>
             <span
-              className="inline-flex items-center gap-1.5 rounded-xl bg-neutral-900 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-white"
+              className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl bg-neutral-900 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-white"
               title="Conversation state — controlled by the Conversation Manager"
             >
               <Waves size={12} className="text-orange-400" />
               {CONV_STATE_LABEL[f.conversationState] ?? f.conversationState}
             </span>
             {f.aiAvailable === true && (
-              <span className="inline-flex items-center gap-1 rounded-xl bg-violet-50 px-2.5 py-2 text-[10px] font-bold uppercase tracking-widest text-violet-600">
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-xl bg-violet-50 px-2.5 py-2 text-[10px] font-bold uppercase tracking-widest text-violet-600">
                 <Sparkles size={11} /> Groq AI
+              </span>
+            )}
+            {f.sttSource === "sarvam" && (
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-xl bg-emerald-50 px-2.5 py-2 text-[10px] font-bold uppercase tracking-widest text-emerald-600">
+                <Mic size={11} /> Sarvam STT
+              </span>
+            )}
+            {f.sttSource === "browser" && (
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-xl bg-sky-50 px-2.5 py-2 text-[10px] font-bold uppercase tracking-widest text-sky-600">
+                <Mic size={11} /> Browser STT
               </span>
             )}
           </div>
           <div
-            className={`flex items-center gap-2 rounded-xl border px-4 py-2.5 text-xs font-medium ${
+            className={`flex items-center gap-2 rounded-xl border px-4 py-2.5 text-xs font-medium backdrop-blur ${
               f.mode === "demo"
-                ? "border-amber-200 bg-amber-50 text-amber-800"
-                : "border-emerald-200 bg-emerald-50 text-emerald-800"
+                ? "border-amber-200 bg-amber-50/90 text-amber-800"
+                : "border-emerald-200 bg-emerald-50/90 text-emerald-800"
             }`}
           >
             {f.mode === "demo" ? (
@@ -269,8 +283,8 @@ export function SleepDrive({
 
       {/* ── mic unavailable banner — never counted as fatigue ── */}
       {active && !d.audio_healthy && (
-        <div className="mx-auto w-full max-w-6xl px-4 pt-2">
-          <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-xs font-medium text-red-700">
+        <div className="mx-auto w-full max-w-6xl px-3 sm:px-4">
+          <div className="mt-2 flex items-center gap-2 rounded-xl border border-red-200 bg-red-50/90 px-4 py-2.5 text-xs font-medium text-red-700">
             <MicOff size={14} className="shrink-0" />
             <span>
               <b>MICROPHONE UNAVAILABLE</b> — silence will not raise your
@@ -282,19 +296,17 @@ export function SleepDrive({
       )}
 
       {/* ── main two-column grid ── */}
-      <div className="mx-auto mt-4 grid w-full max-w-6xl flex-1 gap-5 px-4 pb-8 lg:grid-cols-[1fr_340px] lg:min-h-0">
+      <div className="mx-auto mt-4 grid w-full max-w-6xl flex-1 gap-5 px-3 sm:px-4 lg:grid-cols-[1fr_340px]">
         {/* ────────────── CONVERSATION COLUMN ────────────── */}
-        <section className="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
+        <section className="flex min-h-0 flex-col overflow-hidden rounded-3xl border border-neutral-200 bg-white/80 shadow-lg shadow-orange-900/5 backdrop-blur">
           {/* section header */}
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-neutral-100 px-5 py-4">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-neutral-100 bg-gradient-to-r from-neutral-900 to-neutral-800 px-4 py-4 sm:px-5">
             <div className="flex items-center gap-2">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-neutral-900">
-                <Waves size={16} className="text-orange-400" />
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-orange-400 to-rose-500 shadow-lg shadow-orange-500/30">
+                <Waves size={16} className="text-white" />
               </span>
               <div>
-                <div className="text-sm font-bold text-neutral-900">
-                  Sleep Drive
-                </div>
+                <div className="text-sm font-bold text-white">Sleep Drive</div>
                 <div className="text-[10px] font-semibold uppercase tracking-widest text-neutral-400">
                   Conversational engagement
                 </div>
@@ -304,7 +316,7 @@ export function SleepDrive({
               <span
                 className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest"
                 style={{
-                  backgroundColor: `${meta.color}18`,
+                  backgroundColor: `${meta.color}22`,
                   color: meta.color,
                 }}
               >
@@ -315,15 +327,15 @@ export function SleepDrive({
                 {state.replace(/_/g, " ")}
               </span>
               {f.mode === "demo" ? (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-amber-600">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/20 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-amber-300">
                   <Timer size={11} /> Demo assistant
                 </span>
               ) : (
                 <span
                   className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest ${
                     f.listening
-                      ? "bg-green-50 text-green-600"
-                      : "bg-neutral-100 text-neutral-400"
+                      ? "bg-emerald-500/20 text-emerald-300"
+                      : "bg-white/10 text-neutral-400"
                   }`}
                 >
                   {f.listening ? (
@@ -335,7 +347,7 @@ export function SleepDrive({
                 </span>
               )}
               {f.questionSource === "ai" && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-violet-600">
+                <span className="inline-flex items-center gap-1 rounded-full bg-violet-500/20 px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-violet-300">
                   <Sparkles size={9} /> AI
                 </span>
               )}
@@ -343,14 +355,14 @@ export function SleepDrive({
           </div>
 
           {/* ── body ── */}
-          <div className="flex min-h-0 flex-1 flex-col items-center justify-center p-6 text-center">
+          <div className="flex min-h-0 flex-1 flex-col items-center justify-center p-4 text-center sm:p-6">
             {/* ── IDLE ONBOARDING ── */}
             {f.phase === "idle" && (
               <div className="max-w-sm">
-                <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-neutral-900 shadow-lg">
+                <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-neutral-900 to-neutral-700 shadow-xl shadow-orange-900/20">
                   <BrainCircuit size={28} className="text-white" />
                 </div>
-                <h2 className="text-xl font-bold text-neutral-900">
+                <h2 className="bg-gradient-to-r from-orange-500 via-rose-500 to-violet-500 bg-clip-text text-xl font-black text-transparent">
                   Conversation as a safety signal
                 </h2>
                 <p className="mt-2 text-sm leading-relaxed text-neutral-500">
@@ -358,7 +370,7 @@ export function SleepDrive({
                   for changes — slower replies, silence, missed check-ins. It
                   escalates like a considerate passenger, never a warning alarm.
                 </p>
-                <div className="mt-5 flex items-center justify-center gap-2">
+                <div className="mt-5 flex flex-col items-center justify-center gap-2 sm:flex-row">
                   <PillButton variant="black" onClick={() => f.start("live")}>
                     <Mic size={15} /> Start Sleep Drive
                   </PillButton>
@@ -404,7 +416,7 @@ export function SleepDrive({
                       <div className="flex items-center justify-center gap-2">
                         <SectionLabel>Listening for your response</SectionLabel>
                       </div>
-                      <p className="mt-2 text-2xl font-bold leading-snug tracking-tight text-neutral-900 sm:text-3xl">
+                      <p className="mt-2 text-2xl font-black leading-snug tracking-tight text-neutral-900 sm:text-3xl">
                         {f.question}
                       </p>
                     </div>
@@ -440,9 +452,11 @@ export function SleepDrive({
                             ? "Tap to confirm you are awake (or just speak)"
                             : "Waiting for mic…"
                         }
-                        className="relative z-10 flex h-16 w-16 cursor-pointer items-center justify-center rounded-full shadow-2xl transition-all duration-300 focus:outline-none"
+                        className="relative z-10 flex h-16 w-16 min-h-[44px] cursor-pointer items-center justify-center rounded-full shadow-2xl transition-all duration-300 focus:outline-none"
                         style={{
-                          background: f.listening ? "#f97316" : "#1c1c1c",
+                          background: f.listening
+                            ? "linear-gradient(135deg,#f97316,#ef4444)"
+                            : "linear-gradient(135deg,#1c1c1c,#3f3f3f)",
                           transform: f.listening ? "scale(1.08)" : "scale(1)",
                         }}
                       >
@@ -485,7 +499,7 @@ export function SleepDrive({
                               onClick={() =>
                                 f.demoReply("I'm fine, still here.")
                               }
-                              className="cursor-pointer rounded-xl bg-green-500 px-3 py-2.5 text-xs font-bold text-white hover:bg-green-400"
+                              className="min-h-[44px] cursor-pointer rounded-xl bg-green-500 px-3 py-2.5 text-xs font-bold text-white hover:bg-green-400"
                             >
                               ✓ Reply now
                             </button>
@@ -496,13 +510,13 @@ export function SleepDrive({
                                   6000,
                                 )
                               }
-                              className="cursor-pointer rounded-xl bg-orange-500 px-3 py-2.5 text-xs font-bold text-white hover:bg-orange-400"
+                              className="min-h-[44px] cursor-pointer rounded-xl bg-orange-500 px-3 py-2.5 text-xs font-bold text-white hover:bg-orange-400"
                             >
                               ⏱ Delayed reply (6s)
                             </button>
                             <button
                               onClick={() => f.forceTimeout()}
-                              className="col-span-2 cursor-pointer rounded-xl border border-red-300 bg-white px-3 py-2.5 text-xs font-bold text-red-600 hover:bg-red-50"
+                              className="col-span-2 min-h-[44px] cursor-pointer rounded-xl border border-red-300 bg-white px-3 py-2.5 text-xs font-bold text-red-600 hover:bg-red-50"
                             >
                               ✕ Simulate no-response
                             </button>
@@ -574,7 +588,7 @@ export function SleepDrive({
                 {/* ── QUIET MONITORING — the passenger stays silent ── */}
                 {quiet && (
                   <div className="flex flex-col items-center gap-2">
-                    <div className="flex items-center gap-2 rounded-full bg-neutral-900 px-4 py-2 text-xs font-bold text-white">
+                    <div className="flex items-center gap-2 rounded-full bg-neutral-900 px-4 py-2 text-xs font-bold text-white shadow-lg shadow-neutral-900/20">
                       <span className="h-2 w-2 rounded-full bg-green-400 pulse-dot" />
                       Sleep Drive monitoring
                     </div>
@@ -583,7 +597,7 @@ export function SleepDrive({
                     </p>
                     <button
                       onClick={f.pushToTalk}
-                      className="mt-1 flex cursor-pointer items-center gap-2 rounded-full border border-neutral-300 bg-white px-4 py-2 text-xs font-bold text-neutral-800 hover:bg-neutral-100"
+                      className="mt-1 flex min-h-[44px] cursor-pointer items-center gap-2 rounded-full border border-neutral-300 bg-white px-4 py-2 text-xs font-bold text-neutral-800 shadow-sm hover:bg-neutral-100"
                       title="Speak to Routiq anytime — driver-initiated conversation"
                     >
                       <Mic size={13} /> Talk to Routiq
@@ -596,7 +610,7 @@ export function SleepDrive({
 
                 {/* ── conversation transcript (bounded, driver + Routiq) ── */}
                 {!waiting && f.history.length > 0 && (
-                  <div className="w-full rounded-2xl border border-neutral-200 bg-neutral-50/60 px-4 py-3 text-left">
+                  <div className="w-full rounded-2xl border border-neutral-200 bg-neutral-50/70 px-4 py-3 text-left">
                     <div className="mb-2 flex items-center justify-between">
                       <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">
                         Conversation
@@ -605,22 +619,34 @@ export function SleepDrive({
                         {languageLabel(f.language)}
                       </span>
                     </div>
-                    <div className="max-h-36 space-y-1.5 overflow-y-auto">
+                    <div className="max-h-36 space-y-2 overflow-y-auto">
                       {f.history.slice(-6).map((turn, i) => (
                         <div
                           key={i}
                           className={`flex gap-2 text-xs leading-relaxed ${
                             turn.role === "routiq"
-                              ? "text-neutral-700"
-                              : "text-neutral-500"
+                              ? "justify-start"
+                              : "justify-end"
                           }`}
                         >
                           <span
-                            className={`shrink-0 font-bold ${turn.role === "routiq" ? "text-orange-500" : "text-neutral-400"}`}
+                            className={`inline-block max-w-[85%] rounded-2xl px-3 py-1.5 ${
+                              turn.role === "routiq"
+                                ? "bg-neutral-900 text-neutral-100"
+                                : "bg-white text-neutral-700 ring-1 ring-neutral-200"
+                            }`}
                           >
-                            {turn.role === "routiq" ? "Routiq" : "You"}
+                            <span
+                              className={`mr-1.5 font-bold ${
+                                turn.role === "routiq"
+                                  ? "text-orange-400"
+                                  : "text-neutral-400"
+                              }`}
+                            >
+                              {turn.role === "routiq" ? "Routiq" : "You"}
+                            </span>
+                            {turn.text}
                           </span>
-                          <span>{turn.text}</span>
                         </div>
                       ))}
                     </div>
@@ -644,303 +670,323 @@ export function SleepDrive({
         </section>
 
         {/* ────────────── SIDE COLUMN ────────────── */}
-        <aside className="flex flex-col gap-4">
-          {/* driving status */}
-          <section className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
-            <div className="flex items-center justify-between">
-              <SectionLabel>Driver state</SectionLabel>
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-blue-600">
-                <span className="h-1.5 w-1.5 rounded-full bg-blue-500 pulse-dot" />{" "}
-                In motion
+        <div className="lg:min-w-0">
+          {/* mobile: details toggle */}
+          {active && (
+            <button
+              onClick={() => setShowDetails((v) => !v)}
+              className="mb-3 flex min-h-[44px] w-full cursor-pointer items-center justify-between rounded-2xl border border-neutral-200 bg-white/80 px-4 py-3 text-xs font-bold text-neutral-700 shadow-sm backdrop-blur lg:hidden"
+            >
+              <span className="flex items-center gap-2">
+                <ListChecks size={14} className="text-orange-500" /> Driver
+                details & metrics
               </span>
-            </div>
-            <div className="mt-3 flex items-center justify-between">
-              <div>
-                <div className="text-sm font-semibold text-neutral-900">
-                  Attention state
-                </div>
-                <div className="text-[11px] text-neutral-400">
-                  {meta.description}
-                </div>
-              </div>
-              <RiskBadge level={meta.riskLabel} />
-            </div>
-            <div className="mt-3 flex items-center justify-around">
-              <div className="text-center">
-                <div
-                  className="text-3xl font-black tabular-nums"
-                  style={{ color: meta.color }}
-                >
-                  {engagement}%
-                </div>
-                <div className="text-[10px] font-semibold uppercase tracking-widest text-neutral-400">
-                  Engagement
-                </div>
-              </div>
-              <ScoreGauge score={confidence} size={92} label="Confidence" />
-            </div>
-            {d.baseline_latency_ms != null && (
-              <div className="mt-3 flex items-center justify-center gap-1.5 rounded-xl bg-neutral-50 py-2 text-[11px] font-semibold text-neutral-500">
-                <Gauge size={12} className="text-neutral-400" />
-                Personal baseline {(d.baseline_latency_ms / 1000).toFixed(1)}s ·{" "}
-                {d.baseline_samples > 0
-                  ? `${d.baseline_samples} samples`
-                  : "learning…"}
-              </div>
-            )}
-            <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-              <div className="rounded-xl bg-neutral-50 py-2">
-                <div className="text-lg font-extrabold text-neutral-900">
-                  {d.recent_delayed_responses}
-                </div>
-                <div className="text-[9px] font-semibold uppercase tracking-widest text-neutral-400">
-                  Delayed
-                </div>
-              </div>
-              <div className="rounded-xl bg-neutral-50 py-2">
-                <div className="text-lg font-extrabold text-neutral-900">
-                  {d.missed_responses}
-                </div>
-                <div className="text-[9px] font-semibold uppercase tracking-widest text-neutral-400">
-                  Missed
-                </div>
-              </div>
-              <div className="rounded-xl bg-neutral-50 py-2">
-                <div className="text-lg font-extrabold text-neutral-900">
-                  {d.interventions_triggered}
-                </div>
-                <div className="text-[9px] font-semibold uppercase tracking-widest text-neutral-400">
-                  Interventions
-                </div>
-              </div>
-            </div>
-          </section>
+              {showDetails ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            </button>
+          )}
 
-          {/* evidence */}
-          <section className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
-            <SectionLabel>Why this estimate</SectionLabel>
-            {d.evidence.length === 0 ? (
-              <p className="mt-2 text-xs text-neutral-400">
-                Collecting interaction signals…
-              </p>
-            ) : (
-              <ul className="mt-2 space-y-1.5">
-                {d.evidence.map((e) => (
-                  <li
-                    key={e}
-                    className="flex items-start gap-2 text-xs text-neutral-600"
-                  >
-                    <span
-                      className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full"
-                      style={{ backgroundColor: meta.color }}
-                    />
-                    {e}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-
-          {/* escalation ladder */}
-          <section className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
-            <SectionLabel>Escalation ladder</SectionLabel>
-            <div className="mt-3 space-y-2">
-              {ESCALATION_STEPS.map((s) => (
-                <div
-                  key={s.state}
-                  className={`flex items-center gap-3 rounded-xl border px-3 py-2 transition-colors ${
-                    state === s.state
-                      ? "border-neutral-800 bg-neutral-50"
-                      : "border-neutral-100"
-                  }`}
-                >
-                  <span
-                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-extrabold text-white"
-                    style={{
-                      backgroundColor: state === s.state ? s.color : "#d4d4d4",
-                    }}
-                  >
-                    {ESCALATION_STEPS.indexOf(s) + 1}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span
-                      className={`block text-xs font-bold ${state === s.state ? "text-neutral-900" : "text-neutral-500"}`}
-                    >
-                      {s.label}
-                    </span>
-                    <span className="block truncate text-[10px] text-neutral-400">
-                      {s.desc}
-                    </span>
-                  </span>
-                  {state === s.state && (
-                    <Gauge size={14} style={{ color: s.color }} />
-                  )}
-                </div>
-              ))}
-            </div>
-          </section>
-
-          {/* assistant toggle */}
-          <section className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
-            <SectionLabel>Assistant</SectionLabel>
-            <div className="mt-3 flex items-center justify-between">
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5 text-xs font-medium text-neutral-700">
-                  <Sparkles size={13} className="text-violet-500" /> AI
-                  conversation
-                </div>
-                <div className="mt-0.5 truncate text-[10px] text-neutral-400">
-                  {f.aiAvailable === null
-                    ? "Probing AI availability…"
-                    : f.aiAvailable
-                      ? "Groq conversational replies (falls back to scripted)"
-                      : "Scripted assistant — AI unavailable"}
-                </div>
-              </div>
-              <button
-                onClick={() => f.setAi(!f.aiEnabled)}
-                className={`relative h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors ${f.aiEnabled ? "bg-violet-600" : "bg-neutral-300"}`}
-              >
-                <span
-                  className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${f.aiEnabled ? "left-[22px]" : "left-0.5"}`}
-                />
-              </button>
-            </div>
-          </section>
-
-          {/* audio controls */}
-          <section className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
-            <SectionLabel>Audio controls</SectionLabel>
-            <div className="mt-3 space-y-3">
-              <label className="flex items-center justify-between">
-                <span className="flex items-center gap-2 text-xs font-medium text-neutral-700">
-                  <Volume2 size={14} className="text-neutral-400" /> Voice
-                  assistant (TTS)
+          <aside
+            className={`flex flex-col gap-4 ${showDetails ? "flex" : "hidden lg:flex"}`}
+          >
+            {/* driving status */}
+            <section className="rounded-2xl border border-neutral-200 bg-white/80 p-4 shadow-sm backdrop-blur">
+              <div className="flex items-center justify-between">
+                <SectionLabel>Driver state</SectionLabel>
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-blue-600">
+                  <span className="h-1.5 w-1.5 rounded-full bg-blue-500 pulse-dot" />{" "}
+                  In motion
                 </span>
-                <button
-                  onClick={() => f.setTts(!f.ttsEnabled)}
-                  className={`relative h-6 w-11 cursor-pointer rounded-full transition-colors ${f.ttsEnabled ? "bg-neutral-900" : "bg-neutral-300"}`}
-                >
-                  <span
-                    className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${f.ttsEnabled ? "left-[22px]" : "left-0.5"}`}
-                  />
-                </button>
-              </label>
-              {/* Music — an OPTIONAL intervention. Never auto-starts; it
-                  plays only after the driver explicitly agrees. */}
-              <div>
-                <div className="flex items-center justify-between text-xs font-medium text-neutral-700">
-                  <span className="flex items-center gap-2">
-                    <Music4 size={14} className="text-neutral-400" /> Music
-                  </span>
-                  <span className="text-[10px] text-neutral-400">
-                    only after you ask
-                  </span>
+              </div>
+              <div className="mt-3 flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-semibold text-neutral-900">
+                    Attention state
+                  </div>
+                  <div className="text-[11px] text-neutral-400">
+                    {meta.description}
+                  </div>
                 </div>
-                <div className="mt-2 rounded-xl bg-neutral-50 px-3 py-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[11px] font-semibold text-neutral-700">
-                      {f.musicConsent === "accepted"
-                        ? "● Playing — with your consent"
-                        : f.musicConsent === "pending"
-                          ? "⏳ Waiting for your answer…"
-                          : f.musicConsent === "declined"
-                            ? "✕ Not playing"
-                            : "○ Not requested"}
+                <RiskBadge level={meta.riskLabel} />
+              </div>
+              <div className="mt-3 flex items-center justify-around">
+                <div className="text-center">
+                  <div
+                    className="text-3xl font-black tabular-nums"
+                    style={{ color: meta.color }}
+                  >
+                    {engagement}%
+                  </div>
+                  <div className="text-[10px] font-semibold uppercase tracking-widest text-neutral-400">
+                    Engagement
+                  </div>
+                </div>
+                <ScoreGauge score={confidence} size={92} label="Confidence" />
+              </div>
+              {d.baseline_latency_ms != null && (
+                <div className="mt-3 flex items-center justify-center gap-1.5 rounded-xl bg-neutral-50 py-2 text-[11px] font-semibold text-neutral-500">
+                  <Gauge size={12} className="text-neutral-400" />
+                  Personal baseline {(d.baseline_latency_ms / 1000).toFixed(1)}s
+                  ·{" "}
+                  {d.baseline_samples > 0
+                    ? `${d.baseline_samples} samples`
+                    : "learning…"}
+                </div>
+              )}
+              <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+                <div className="rounded-xl bg-neutral-50 py-2">
+                  <div className="text-lg font-extrabold text-neutral-900">
+                    {d.recent_delayed_responses}
+                  </div>
+                  <div className="text-[9px] font-semibold uppercase tracking-widest text-neutral-400">
+                    Delayed
+                  </div>
+                </div>
+                <div className="rounded-xl bg-neutral-50 py-2">
+                  <div className="text-lg font-extrabold text-neutral-900">
+                    {d.missed_responses}
+                  </div>
+                  <div className="text-[9px] font-semibold uppercase tracking-widest text-neutral-400">
+                    Missed
+                  </div>
+                </div>
+                <div className="rounded-xl bg-neutral-50 py-2">
+                  <div className="text-lg font-extrabold text-neutral-900">
+                    {d.interventions_triggered}
+                  </div>
+                  <div className="text-[9px] font-semibold uppercase tracking-widest text-neutral-400">
+                    Interventions
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* evidence */}
+            <section className="rounded-2xl border border-neutral-200 bg-white/80 p-4 shadow-sm backdrop-blur">
+              <SectionLabel>Why this estimate</SectionLabel>
+              {d.evidence.length === 0 ? (
+                <p className="mt-2 text-xs text-neutral-400">
+                  Collecting interaction signals…
+                </p>
+              ) : (
+                <ul className="mt-2 space-y-1.5">
+                  {d.evidence.map((e) => (
+                    <li
+                      key={e}
+                      className="flex items-start gap-2 text-xs text-neutral-600"
+                    >
+                      <span
+                        className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full"
+                        style={{ backgroundColor: meta.color }}
+                      />
+                      {e}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+
+            {/* escalation ladder */}
+            <section className="rounded-2xl border border-neutral-200 bg-white/80 p-4 shadow-sm backdrop-blur">
+              <SectionLabel>Escalation ladder</SectionLabel>
+              <div className="mt-3 space-y-2">
+                {ESCALATION_STEPS.map((s) => (
+                  <div
+                    key={s.state}
+                    className={`flex items-center gap-3 rounded-xl border px-3 py-2 transition-colors ${
+                      state === s.state
+                        ? "border-neutral-800 bg-neutral-50 shadow-sm"
+                        : "border-neutral-100"
+                    }`}
+                  >
+                    <span
+                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-extrabold text-white"
+                      style={{
+                        backgroundColor:
+                          state === s.state ? s.color : "#d4d4d4",
+                      }}
+                    >
+                      {ESCALATION_STEPS.indexOf(s) + 1}
                     </span>
-                    {f.musicConsent === "accepted" ? (
-                      <button
-                        onClick={f.stopMusic}
-                        className="cursor-pointer rounded-full bg-neutral-900 px-2.5 py-1 text-[10px] font-bold text-white hover:bg-neutral-700"
+                    <span className="min-w-0 flex-1">
+                      <span
+                        className={`block text-xs font-bold ${state === s.state ? "text-neutral-900" : "text-neutral-500"}`}
                       >
-                        Stop music
-                      </button>
-                    ) : (
-                      <button
-                        onClick={f.offerMusic}
-                        disabled={
-                          f.musicConsent === "pending" || f.phase === "waiting"
-                        }
-                        className="cursor-pointer rounded-full bg-white px-2.5 py-1 text-[10px] font-bold text-neutral-900 ring-1 ring-neutral-300 hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        Ask to play music
-                      </button>
+                        {s.label}
+                      </span>
+                      <span className="block truncate text-[10px] text-neutral-400">
+                        {s.desc}
+                      </span>
+                    </span>
+                    {state === s.state && (
+                      <Gauge size={14} style={{ color: s.color }} />
                     )}
                   </div>
-                  <input
-                    type="range"
-                    min={0}
-                    max={0.4}
-                    step={0.05}
-                    defaultValue={0.1}
-                    disabled={f.musicConsent !== "accepted"}
-                    onChange={(e) => f.setMusicVolume(Number(e.target.value))}
-                    className="mt-1.5 w-full accent-neutral-900 disabled:opacity-40"
-                  />
-                </div>
-              </div>
-            </div>
-          </section>
-
-          {/* thresholds */}
-          <section className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
-            <button
-              onClick={() => setShowSettings((v) => !v)}
-              className="flex w-full cursor-pointer items-center justify-between"
-            >
-              <SectionLabel>Latency thresholds</SectionLabel>
-              <span className="text-[10px] font-bold text-neutral-400">
-                {showSettings ? "−" : "+"}
-              </span>
-            </button>
-            {showSettings && (
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                {(
-                  [
-                    ["normal_max", "Normal ≤"],
-                    ["mild_max", "Mild ≤"],
-                    ["elevated_max", "Elevated ≤"],
-                    ["max_wait_seconds", "Max wait"],
-                  ] as const
-                ).map(([key, label]) => (
-                  <label
-                    key={key}
-                    className="rounded-xl bg-neutral-50 px-3 py-2"
-                  >
-                    <span className="block text-[10px] font-semibold uppercase tracking-widest text-neutral-400">
-                      {label} (s)
-                    </span>
-                    <input
-                      type="number"
-                      step={0.5}
-                      value={f.thresholds[key]}
-                      onChange={(e) =>
-                        f.updateThresholds({
-                          ...f.thresholds,
-                          [key]: Number(e.target.value),
-                        })
-                      }
-                      className="mt-0.5 w-full bg-transparent text-sm font-bold text-neutral-900 outline-none"
-                    />
-                  </label>
                 ))}
               </div>
-            )}
-          </section>
+            </section>
 
-          {/* session controls */}
-          <section className="flex flex-col gap-2">
-            {f.phase === "idle" ? (
-              <div className="grid grid-cols-2 gap-2">
-                <PillButton variant="black" onClick={() => f.start("live")}>
-                  <Mic size={15} /> Live
-                </PillButton>
-                <PillButton variant="grey" onClick={() => f.start("demo")}>
-                  <Play size={15} /> Demo
-                </PillButton>
+            {/* assistant toggle */}
+            <section className="rounded-2xl border border-neutral-200 bg-white/80 p-4 shadow-sm backdrop-blur">
+              <SectionLabel>Assistant</SectionLabel>
+              <div className="mt-3 flex items-center justify-between">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 text-xs font-medium text-neutral-700">
+                    <Sparkles size={13} className="text-violet-500" /> AI
+                    conversation
+                  </div>
+                  <div className="mt-0.5 truncate text-[10px] text-neutral-400">
+                    {f.aiAvailable === null
+                      ? "Probing AI availability…"
+                      : f.aiAvailable
+                        ? "Groq conversational replies (falls back to scripted)"
+                        : "Scripted assistant — AI unavailable"}
+                  </div>
+                </div>
+                <button
+                  onClick={() => f.setAi(!f.aiEnabled)}
+                  aria-label="Toggle AI conversation"
+                  className={`relative h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors ${f.aiEnabled ? "bg-violet-600" : "bg-neutral-300"}`}
+                >
+                  <span
+                    className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${f.aiEnabled ? "left-[22px]" : "left-0.5"}`}
+                  />
+                </button>
               </div>
-            ) : (
-              <>
+            </section>
+
+            {/* audio controls */}
+            <section className="rounded-2xl border border-neutral-200 bg-white/80 p-4 shadow-sm backdrop-blur">
+              <SectionLabel>Audio controls</SectionLabel>
+              <div className="mt-3 space-y-3">
+                <label className="flex items-center justify-between">
+                  <span className="flex items-center gap-2 text-xs font-medium text-neutral-700">
+                    <Volume2 size={14} className="text-neutral-400" /> Voice
+                    assistant (TTS)
+                  </span>
+                  <button
+                    onClick={() => f.setTts(!f.ttsEnabled)}
+                    aria-label="Toggle voice assistant"
+                    className={`relative h-6 w-11 cursor-pointer rounded-full transition-colors ${f.ttsEnabled ? "bg-neutral-900" : "bg-neutral-300"}`}
+                  >
+                    <span
+                      className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${f.ttsEnabled ? "left-[22px]" : "left-0.5"}`}
+                    />
+                  </button>
+                </label>
+                {/* Music — an OPTIONAL intervention. Never auto-starts; it
+                    plays only after the driver explicitly agrees. */}
+                <div>
+                  <div className="flex items-center justify-between text-xs font-medium text-neutral-700">
+                    <span className="flex items-center gap-2">
+                      <Music4 size={14} className="text-neutral-400" /> Music
+                    </span>
+                    <span className="text-[10px] text-neutral-400">
+                      only after you ask
+                    </span>
+                  </div>
+                  <div className="mt-2 rounded-xl bg-neutral-50 px-3 py-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-semibold text-neutral-700">
+                        {f.musicConsent === "accepted"
+                          ? "● Playing — with your consent"
+                          : f.musicConsent === "pending"
+                            ? "⏳ Waiting for your answer…"
+                            : f.musicConsent === "declined"
+                              ? "✕ Not playing"
+                              : "○ Not requested"}
+                      </span>
+                      {f.musicConsent === "accepted" ? (
+                        <button
+                          onClick={f.stopMusic}
+                          className="min-h-[32px] cursor-pointer rounded-full bg-neutral-900 px-2.5 py-1 text-[10px] font-bold text-white hover:bg-neutral-700"
+                        >
+                          Stop music
+                        </button>
+                      ) : (
+                        <button
+                          onClick={f.offerMusic}
+                          disabled={
+                            f.musicConsent === "pending" || f.phase === "waiting"
+                          }
+                          className="min-h-[32px] cursor-pointer rounded-full bg-white px-2.5 py-1 text-[10px] font-bold text-neutral-900 ring-1 ring-neutral-300 hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          Ask to play music
+                        </button>
+                      )}
+                    </div>
+                    <input
+                      type="range"
+                      min={0}
+                      max={0.4}
+                      step={0.05}
+                      defaultValue={0.1}
+                      disabled={f.musicConsent !== "accepted"}
+                      onChange={(e) => f.setMusicVolume(Number(e.target.value))}
+                      className="mt-1.5 w-full accent-neutral-900 disabled:opacity-40"
+                    />
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* thresholds */}
+            <section className="rounded-2xl border border-neutral-200 bg-white/80 p-4 shadow-sm backdrop-blur">
+              <button
+                onClick={() => setShowSettings((v) => !v)}
+                className="flex w-full cursor-pointer items-center justify-between"
+              >
+                <SectionLabel>Latency thresholds</SectionLabel>
+                <span className="text-[10px] font-bold text-neutral-400">
+                  {showSettings ? "−" : "+"}
+                </span>
+              </button>
+              {showSettings && (
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  {(
+                    [
+                      ["normal_max", "Normal ≤"],
+                      ["mild_max", "Mild ≤"],
+                      ["elevated_max", "Elevated ≤"],
+                      ["max_wait_seconds", "Max wait"],
+                    ] as const
+                  ).map(([key, label]) => (
+                    <label
+                      key={key}
+                      className="rounded-xl bg-neutral-50 px-3 py-2"
+                    >
+                      <span className="block text-[10px] font-semibold uppercase tracking-widest text-neutral-400">
+                        {label} (s)
+                      </span>
+                      <input
+                        type="number"
+                        step={0.5}
+                        value={f.thresholds[key]}
+                        onChange={(e) =>
+                          f.updateThresholds({
+                            ...f.thresholds,
+                            [key]: Number(e.target.value),
+                          })
+                        }
+                        className="mt-0.5 w-full bg-transparent text-sm font-bold text-neutral-900 outline-none"
+                      />
+                    </label>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            {/* session controls — desktop only (mobile uses the bottom bar) */}
+            <section className="hidden flex-col gap-2 lg:flex">
+              {f.phase === "idle" ? (
+                <div className="grid grid-cols-2 gap-2">
+                  <PillButton variant="black" onClick={() => f.start("live")}>
+                    <Mic size={15} /> Live
+                  </PillButton>
+                  <PillButton variant="grey" onClick={() => f.start("demo")}>
+                    <Play size={15} /> Demo
+                  </PillButton>
+                </div>
+              ) : (
                 <div className="flex gap-2">
                   {f.phase === "paused" ? (
                     <PillButton
@@ -974,21 +1020,68 @@ export function SleepDrive({
                     <Power size={14} />
                   </PillButton>
                 </div>
-              </>
-            )}
-          </section>
+              )}
+            </section>
 
-          {active && (
-            <p className="text-center text-[10px] leading-relaxed text-neutral-400">
-              Estimates possible fatigue / reduced engagement — not a medical
-              diagnosis. If drowsy, stop driving.
-            </p>
-          )}
-        </aside>
+            {active && (
+              <p className="text-center text-[10px] leading-relaxed text-neutral-400">
+                Estimates possible fatigue / reduced engagement — not a medical
+                diagnosis. If drowsy, stop driving.
+              </p>
+            )}
+          </aside>
+        </div>
       </div>
 
+      {/* ── mobile sticky bottom action bar ── */}
+      {active && !critical && (
+        <div className="fixed inset-x-0 bottom-0 z-[1200] border-t border-neutral-200 bg-white/90 px-3 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 backdrop-blur lg:hidden">
+          <div className="mx-auto flex max-w-lg items-center gap-2">
+            {f.phase === "paused" ? (
+              <PillButton
+                variant="black"
+                className="flex-1"
+                onClick={() => f.resume()}
+              >
+                <Play size={15} /> Resume
+              </PillButton>
+            ) : (
+              <PillButton
+                variant="grey"
+                className="flex-1"
+                onClick={f.pause}
+              >
+                <Pause size={15} /> Pause
+              </PillButton>
+            )}
+            <PillButton
+              variant="grey"
+              onClick={f.stop}
+              title="Stop monitoring"
+              className="flex-1"
+            >
+              <Square size={14} /> Stop
+            </PillButton>
+            {f.musicConsent === "accepted" ? (
+              <PillButton variant="outline" onClick={f.stopMusic} className="flex-1">
+                <Music4 size={14} /> Stop music
+              </PillButton>
+            ) : (
+              <PillButton
+                variant="outline"
+                onClick={f.offerMusic}
+                disabled={f.musicConsent === "pending" || f.phase === "waiting"}
+                className="flex-1 disabled:opacity-40"
+              >
+                <Music4 size={14} /> Music
+              </PillButton>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ── disclaimer ── */}
-      <div className="mx-auto flex max-w-6xl items-center gap-2 px-4 pb-6">
+      <div className="mx-auto flex max-w-6xl items-center gap-2 px-3 sm:px-4">
         <ShieldCheck size={12} className="shrink-0 text-neutral-400" />
         <p className="text-[10px] leading-relaxed text-neutral-400">
           Bluetooth-ready: in a production vehicle this runs through car
@@ -1002,7 +1095,7 @@ export function SleepDrive({
       {critical && (
         <div className="fixed inset-0 z-[1500] flex items-center justify-center bg-red-950/90 p-4 backdrop-blur-sm">
           <div className="alert-flash w-full max-w-md rounded-3xl border-2 border-red-400 bg-red-50 p-8 text-center">
-            <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-red-500 text-white">
+            <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-red-500 to-rose-600 text-white shadow-xl shadow-red-500/40">
               <Siren size={36} className="animate-pulse" />
             </div>
             <h2 className="text-2xl font-extrabold tracking-tight text-red-600">

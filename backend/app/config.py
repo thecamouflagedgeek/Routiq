@@ -183,7 +183,7 @@ class Settings:
     elevenlabs_timeout: float = _env_float("ELEVENLABS_TIMEOUT", 20.0)
 
     stt_provider: str = os.environ.get("STT_PROVIDER", "sarvam")
-    tts_provider: str = os.environ.get("TTS_PROVIDER", "elevenlabs")
+    tts_provider: str = os.environ.get("TTS_PROVIDER", "sarvam")
     # Cache deterministic TTS phrases (text+language -> base64 audio) to cut
     # latency + API spend. Personalized responses are never cached.
     tts_cache_enabled: bool = True

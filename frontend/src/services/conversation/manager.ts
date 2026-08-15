@@ -31,8 +31,10 @@ import {
   classifyMusicIntent,
   INTRO,
   isMusicOffer,
+  isTtsEcho,
   MUSIC_OFFER,
   scriptedForIntent,
+  scriptedReply,
   targetLanguage,
 } from './phrases'
 import type { LatencyResult, ManagerState, MusicConsent, QuestionSource, SleepPhase } from './types'
@@ -113,6 +115,20 @@ export class ConversationManager {
   private demoTimers: number[] = []
   private waitingInterval: number | null = null
   private cooldownInterval: number | null = null
+  private checkInInterval: number | null = null
+  /** guards against overlapping turns (double ASR results, rapid fire) */
+  private handlingTurn = false
+  /** rotates through the short acknowledgement phrases */
+  private ackSeed = 0
+  /** text currently being spoken — used to filter the TTS echo out of barge-in */
+  private currentTtsText = ''
+  /** when the last TTS utterance finished — the echo lingers in the room and
+   *  the mic keeps hearing it, so the echo filter stays armed briefly after */
+  private lastTtsEndAt = 0
+  /** speechstart during TTS arms a barge-in candidate; only a real driver
+   *  result (not the echo) confirms it */
+  private bargeCandidate = false
+  private bargeDebounce: number | null = null
 
   constructor(deps: ManagerDeps) {
     this.deps = deps
@@ -154,6 +170,17 @@ export class ConversationManager {
 
   private setPhase(p: SleepPhase) {
     this.phase = p
+    if (p === 'quiet') {
+      // clearTimers() (timeout / response) kills the pacing loops — restart
+      // them on every re-entry into quiet monitoring so the closed loop
+      // keeps running: respond -> quiet -> interval -> gentle check-in.
+      this.startCooldownLoop()
+      this.startCheckInScheduler()
+      // Re-arm the mic: stopListening() during the turn left it dead, and a
+      // driver must be able to initiate a conversation at ANY moment. (Live
+      // only — the demo is fully scripted and must stay deterministic.)
+      if (this.deps.mode() === 'live') this.deps.transport()?.ask()
+    }
     this.emit()
   }
 
@@ -197,6 +224,10 @@ export class ConversationManager {
       window.clearInterval(this.cooldownInterval)
       this.cooldownInterval = null
     }
+    if (this.checkInInterval != null) {
+      window.clearInterval(this.checkInInterval)
+      this.checkInInterval = null
+    }
   }
 
   private clearDemoTimers() {
@@ -205,12 +236,30 @@ export class ConversationManager {
   }
 
   // ------------------------------------------------------------- speech
+  private armBargeIn() {
+    this.bargeCandidate = true
+    if (this.bargeDebounce != null) window.clearTimeout(this.bargeDebounce)
+    this.bargeDebounce = window.setTimeout(() => {
+      this.bargeCandidate = false
+      this.bargeDebounce = null
+    }, 700)
+  }
+
+  private disarmBargeIn() {
+    this.bargeCandidate = false
+    if (this.bargeDebounce != null) {
+      window.clearTimeout(this.bargeDebounce)
+      this.bargeDebounce = null
+    }
+  }
+
   /** Sarvam TTS first (natural Indian voice), browser speech fallback. */
   private speakText(text: string, opts?: { rate?: number; onComplete?: () => void }) {
     if (!this.ttsEnabled) {
       opts?.onComplete?.()
       return
     }
+    this.currentTtsText = text
     const t = this.deps.transport()
     if (!t) {
       opts?.onComplete?.()
@@ -219,42 +268,42 @@ export class ConversationManager {
     const language = this.language === 'auto' ? 'en-IN' : this.language
     const complete = () => {
       this.speaking = false
+      this.lastTtsEndAt = performance.now()
       this.emit()
       opts?.onComplete?.()
     }
     this.speaking = true
     this.emit()
-    // Deterministic demo stays offline + fast; live mode prefers Sarvam.
-    if (this.deps.mode() === 'live') {
-      let settled = false
-      const fallbackToBrowser = () => {
-        if (settled) return
-        settled = true
-        this.speakBrowser(text, { ...opts, onComplete: complete })
-      }
-      const remoteRequest = api
-        .fatigueTTS(text, language)
-        .then((res) => {
-          if (!this.deps.isActive() || settled) return
-          if (res.source === 'sarvam' && res.audio_base64) {
-            settled = true
-            this.deps.emitEvent({ event_type: 'tts_started', transcript: text, language }).catch(() => {})
-            t.ask()
-            t.playRemoteAudio(res.audio_base64, res.format, complete)
-            return
-          }
-          fallbackToBrowser()
-        })
-        .catch(() => fallbackToBrowser())
-
-      window.setTimeout(() => {
-        if (!settled) fallbackToBrowser()
-      }, 900)
-
-      void remoteRequest
-      return
+    // Live AND demo both prefer the Sarvam natural voice; browser speech is
+    // the graceful fallback (offline, slow render, or Sarvam failure).
+    let settled = false
+    const fallbackToBrowser = () => {
+      if (settled) return
+      settled = true
+      this.speakBrowser(text, { ...opts, onComplete: complete })
     }
-    this.speakBrowser(text, { ...opts, onComplete: complete })
+    const remoteRequest = api
+      .fatigueTTS(text, language)
+      .then((res) => {
+        if (!this.deps.isActive() || settled) return
+        if (res.audio_base64 && (res.source === 'sarvam' || res.source === 'elevenlabs')) {
+          settled = true
+          this.deps.emitEvent({ event_type: 'tts_started', transcript: text, language }).catch(() => {})
+          t.ask()
+          t.playRemoteAudio(res.audio_base64, res.format, complete)
+          return
+        }
+        fallbackToBrowser()
+      })
+      .catch(() => fallbackToBrowser())
+
+    // Give Sarvam enough time to synthesize — a slow render must not
+    // silently demote the natural voice to browser speech.
+    window.setTimeout(() => {
+      if (!settled) fallbackToBrowser()
+    }, 2500)
+
+    void remoteRequest
   }
 
   private speakBrowser(text: string, opts?: { rate?: number; onComplete?: () => void }) {
@@ -276,18 +325,20 @@ export class ConversationManager {
     }
   }
 
-  /** Driver began speaking while we were talking — interrupt TTS. */
+  /** Driver began speaking while we were talking — interrupt TTS.
+   *  Only called after a confirmed (non-echo) driver result. */
   private bargeIn() {
     if (!this.speaking) return
     const t = this.deps.transport()
     this.speaking = false
+    this.disarmBargeIn()
+    this.currentTtsText = ''
     this.emit()
     this.deps.emitEvent({ event_type: 'tts_interrupted' }).catch(() => {})
     t?.stopSpeaking()
   }
 
   // ------------------------------------------------------------ prompts
-  // @ts-ignore
   private async pickQuestion(): Promise<{ text: string; source: QuestionSource }> {
     const scripted = this.deps.scriptedNextPrompt()
     if (this.aiEnabled && this.aiAvailable && this.deps.mode() === 'live') {
@@ -301,7 +352,7 @@ export class ConversationManager {
             road_context: this.deps.roadContext(),
           })
           .then((r) => (r.source !== 'scripted' ? r.reply : null)),
-        new Promise<string | null>((res) => setTimeout(() => res(null), 1500)),
+        new Promise<string | null>((res) => this.later(() => res(null), 1500)),
       ])
       if (ai) return { text: ai, source: 'ai' }
     }
@@ -315,7 +366,10 @@ export class ConversationManager {
     this.transcript = ''
     this.lastLatency = null
     this.elapsed = 0
-    this.questionStartRef = performance.now()
+    // The response-latency clock starts only once Sarvam has FINISHED
+    // speaking — TTS synthesis + playback time must never count against the
+    // driver. Until then the timer is 0 (no timeout can fire early either).
+    this.questionStartRef = 0
     this.promptIdRef = Math.random().toString(36).slice(2, 10)
     this.setPhase('waiting')
     this.pushTurn('routiq', q)
@@ -326,9 +380,21 @@ export class ConversationManager {
       rate: 1.02,
       onComplete: () => {
         if (!this.deps.isActive()) return
+        // The voice finished — the driver's response window starts now.
+        this.questionStartRef = performance.now()
         if (this.phase === 'waiting') this.startWaitingTimer()
       },
     })
+    // Safety net: if TTS somehow never completes (synthesis hangs AND browser
+    // speech fails), the response clock must still start — never wedge the
+    // session in a perpetual "waiting" state. Only fires when we are NOT
+    // speaking, so a long utterance can never have its clock started early.
+    this.later(() => {
+      if (!this.questionStartRef && !this.speaking && this.phase === 'waiting') {
+        this.questionStartRef = performance.now()
+        this.startWaitingTimer()
+      }
+    }, 8000)
     if (isMusicOffer(q)) {
       this.musicConsent = 'pending'
       this.deps.emitEvent({ event_type: 'music_permission_requested' }).catch(() => {})
@@ -340,7 +406,9 @@ export class ConversationManager {
   private startWaitingTimer() {
     if (this.waitingInterval != null) window.clearInterval(this.waitingInterval)
     this.waitingInterval = window.setInterval(() => {
-      const e = (performance.now() - this.questionStartRef) / 1000
+      // questionStartRef is 0 until TTS finishes — show 0 and never time out
+      // early while the question is still being spoken.
+      const e = this.questionStartRef ? (performance.now() - this.questionStartRef) / 1000 : 0
       this.elapsed = e
       this.emit()
       if (e >= this.deps.thresholds().max_wait_seconds && this.phase === 'waiting') {
@@ -351,15 +419,46 @@ export class ConversationManager {
     }, 100)
   }
 
+  /**
+   * Proactive check-in path (live mode). Quiet monitoring is the default:
+   * a prompt is only issued when the risk-adaptive cooldown has elapsed AND
+   * the audio path is healthy AND no turn is in flight. If none of those
+   * hold, staying silent IS the correct action.
+   */
+  /**
+   * Proactive check-in path (live mode). The FIRST check-in after start /
+   * resume / recover always speaks — the conversation opens with Sarvam's
+   * voice regardless of mic state (a blocked mic must not silence the
+   * greeting; the fail-safe only applies to interpreting non-response).
+   * The scheduler gates REPEATED prompts on a healthy audio path so we
+   * never nag a driver whose mic is down.
+   */
   private async askQuestion() {
     if (!this.deps.isActive() || this.deps.mode() === 'demo') return
     if (this.musicConsent === 'pending') return
-    if (!this.deps.getDriver().audio_healthy) return
-    
-    // In ElevenLabs mode, we do NOT manually orchestrate STT/TTS turn-taking.
-    // The agent prompt dictates when it should proactively check-in.
-    // We just update the phase to quiet monitoring.
-    this.setPhase('quiet')
+    if (this.phase === 'waiting' || this.phase === 'analyzing' || this.phase === 'starting') return
+    // Never prompt before the cooldown is up — long quiet periods are by design.
+    if (this.nextPromptAt != null && Date.now() < this.nextPromptAt) return
+    const { text, source } = await this.pickQuestion()
+    if (!this.deps.isActive()) return
+    this.issuePrompt(text, source)
+  }
+
+  /**
+   * Every 2s, from QUIET_MONITORING, check whether a proactive check-in is
+   * due (risk-adaptive interval). This is what makes live mode a closed loop:
+   * respond -> quiet -> long interval -> gentle check-in -> respond.
+   */
+  private startCheckInScheduler() {
+    if (this.checkInInterval != null) return
+    this.checkInInterval = window.setInterval(() => {
+      if (!this.deps.isActive() || this.deps.mode() !== 'live') return
+      if (this.phase !== 'quiet') return
+      if (this.musicConsent === 'pending') return
+      if (this.nextPromptAt == null || Date.now() < this.nextPromptAt) return
+      if (!this.deps.getDriver().audio_healthy) return
+      void this.askQuestion()
+    }, 2000)
   }
 
   // ------------------------------------------------------------- alert
@@ -382,16 +481,20 @@ export class ConversationManager {
    * DRIVER-INITIATED turn — a first-class path, handled via the chat API.
    */
   private onDriverSpeech(text: string, confidence?: number, latencySecondsOverride?: number) {
-    if (!this.deps.isActive() || this.phase === 'analyzing') return
+    if (!this.deps.isActive() || this.phase === 'analyzing' || this.handlingTurn) return
+    this.handlingTurn = true
     const t = this.deps.transport()
     t?.stopListening()
     this.clearTimers()
 
-    const latency = latencySecondsOverride ?? Math.max(0.1, (performance.now() - this.questionStartRef) / 1000)
+    const latency =
+      latencySecondsOverride ??
+      (this.questionStartRef ? Math.max(0.1, (performance.now() - this.questionStartRef) / 1000) : 0.1)
 
     // ── driver initiated while we were quiet ──────────────────────────────
     if (this.phase !== 'waiting') {
-      this.handleDriverInitiated(text)
+      this.handlingTurn = false // let handleDriverInitiated take ownership
+      void this.handleDriverInitiated(text)
       return
     }
 
@@ -425,11 +528,15 @@ export class ConversationManager {
       })
       .then((d) => {
         if (!this.deps.isActive()) return
-        this.nextPromptAt = Date.now() + 60000 // default interval
+        this.handlingTurn = false
+        // Risk-adaptive pacing: healthy responses earn a long quiet period;
+        // degraded states shorten it. Never conflated with response latency.
+        this.nextPromptAt = Date.now() + promptIntervalFor(d.state, this.deps.thresholds()) * 1000
         this.deps.applyDriver(d)
 
         // music consent: only an explicit YES starts music
-        if (this.musicConsent === 'pending') {
+        const wasMusicOffer = this.musicConsent === 'pending'
+        if (wasMusicOffer) {
           const intent = classifyMusicIntent(text || '')
           if (intent === 'yes') {
             this.musicConsent = 'accepted'
@@ -444,22 +551,39 @@ export class ConversationManager {
         }
         this.emit()
 
-        // ElevenLabs handles the response generation and TTS. 
-        // We just update the phase.
         if (d.state === 'HIGH_CONCERN') {
           this.later(() => this.enterAlert(), 900)
           return
         }
+        // The passenger responds to the reply, then goes quiet. Music
+        // consent replies need no spoken ack (the music itself is the reply).
+        if (!wasMusicOffer) {
+          const ack = scriptedReply(d.state, this.ackSeed++)
+          if (ack) {
+            this.pushTurn('routiq', ack)
+            this.speakText(ack)
+          }
+        }
+        // healthy reply -> acknowledge -> quiet monitoring (scheduler owns pacing)
         this.setPhase('quiet')
       })
   }
 
   // --------------------------------------------- driver-initiated turns
   private async handleDriverInitiated(text: string) {
-    if (!text || !text.trim()) return
+    if (!text || !text.trim() || this.handlingTurn) return
+    this.handlingTurn = true
+    try {
+      await this.driverInitiatedFlow(text.trim())
+    } finally {
+      this.handlingTurn = false
+    }
+  }
+
+  /** Groq answers driver-initiated turns; deterministic policy gates actions. */
+  private async driverInitiatedFlow(transcript: string) {
     this.setPhase('analyzing')
     this.lastLatency = null
-    const transcript = text.trim()
     this.transcript = transcript
 
     // client-side intent (fast) + language switch detection
@@ -474,12 +598,6 @@ export class ConversationManager {
       .emitEvent({ event_type: 'driver_initiated', transcript, language: this.language })
       .catch(() => {})
     this.deps.emitEvent({ event_type: 'intent_detected', intent, transcript, language: this.language }).catch(() => {})
-
-    if (this.deps.transport()?.name === 'elevenlabs') {
-       // ElevenLabs handles the response natively. We just reset phase.
-       this.setPhase('quiet')
-       return
-    }
 
     try {
       const res = await api.fatigueChat({
@@ -559,8 +677,8 @@ export class ConversationManager {
             this.later(() => this.enterAlert(), 900)
             return
           }
+          // back to quiet monitoring — the risk-adaptive scheduler owns pacing
           this.setPhase('quiet')
-          if (this.deps.mode() === 'live') this.later(() => this.askQuestion(), 100)
         }
 
         if (this.ttsEnabled && d.audio_healthy) {
@@ -632,6 +750,7 @@ export class ConversationManager {
     this.lastLatency = null
     this.setPhase('starting')
     this.startCooldownLoop()
+    this.startCheckInScheduler()
 
     if (this.aiEnabled && this.aiAvailable === null) {
       api
@@ -669,7 +788,7 @@ export class ConversationManager {
         this.setPhase('intro')
         if (mode === 'demo') this.startDemo()
         else this.askQuestion()
-      }, 500)
+      }, 800)
     }, 500)
   }
 
@@ -687,6 +806,8 @@ export class ConversationManager {
     this.deps.transport()?.stop()
     this.clearTimers()
     this.clearDemoTimers()
+    this.disarmBargeIn()
+    this.currentTtsText = ''
     this.setPhase('idle')
     this.deps.setSessionId('')
     this.deps.setSessionStart(null)
@@ -702,6 +823,8 @@ export class ConversationManager {
     this.deps.transport()?.stopSpeaking()
     this.clearTimers()
     this.clearDemoTimers()
+    this.disarmBargeIn()
+    this.currentTtsText = ''
     this.setPhase('paused')
   }
 
@@ -718,6 +841,7 @@ export class ConversationManager {
     }
     this.deps.transport()?.start()
     this.setPhase('quiet')
+    this.startCheckInScheduler()
     this.askQuestion()
   }
 
@@ -728,6 +852,7 @@ export class ConversationManager {
     this.lastLatency = null
     this.musicConsent = 'idle'
     this.setPhase('intro')
+    this.startCheckInScheduler()
     if (this.deps.mode() === 'demo') {
       this.deps.setSessionStart(performance.now())
       this.later(() => this.startDemo(), 1000)
@@ -826,10 +951,42 @@ export class ConversationManager {
     error?: string
   }) {
     if (e.kind === 'speechstart') {
-      this.bargeIn()
-      if (this.deps.isActive()) this.deps.emitEvent({ event_type: 'speech_started' }).catch(() => {})
+      if (this.speaking) {
+        // The assistant's own voice echoes back through the mic and fires
+        // speechstart — never cut TTS on that. Arm a candidate; only a
+        // FINAL result that is not the echo confirms a real barge-in.
+        this.armBargeIn()
+      } else if (this.deps.isActive()) {
+        // genuine driver speech while we were quiet — start the response
+        // timing window
+        this.deps.emitEvent({ event_type: 'speech_started' }).catch(() => {})
+      }
     } else if (e.kind === 'result' && e.finalText && e.finalText.trim()) {
-      this.onDriverSpeech(e.finalText.trim(), e.confidence)
+      const text = e.finalText.trim()
+      if (this.speaking && this.bargeCandidate) {
+        this.disarmBargeIn()
+        if (isTtsEcho(text, this.currentTtsText)) {
+          // our own voice — ignore, keep speaking
+          return
+        }
+        // real driver speech: interrupt TTS, then treat as driver-initiated
+        this.bargeIn()
+        this.onDriverSpeech(text, e.confidence)
+        return
+      }
+      // The assistant's voice echoes back through the mic even AFTER it
+      // finished speaking — a transcribed echo must never become a fake
+      // driver turn (that was the "heard twice" bug). Filter it for a short
+      // window after the last TTS utterance.
+      const echoWindowMs = 6000
+      if (
+        this.currentTtsText &&
+        (this.speaking || performance.now() - this.lastTtsEndAt < echoWindowMs) &&
+        isTtsEcho(text, this.currentTtsText)
+      ) {
+        return
+      }
+      this.onDriverSpeech(text, e.confidence)
     }
   }
 }

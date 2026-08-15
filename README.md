@@ -13,6 +13,8 @@ An AI-powered mobility application combining high-end **Uber-inspired UI design*
 5. **Sleep Drive Conversational Engagement Engine**: A closed-loop, event-driven driver-awareness system. It learns the driver's **personal response baseline** (rolling latency median), temporally aggregates interaction signals (latency, silence, speech confidence) into an explainable state — `NORMAL → ATTENTION → ELEVATED → HIGH_CONCERN` — with **risk kept separate from confidence**, audio failures never counted as fatigue, cooldown-paced escalation like a considerate passenger, a deterministic **demo sequence**, and a clean driver-state API for the Dashboard's contextual-risk fusion widget.
 
    **Bidirectional & multilingual**: a `ConversationManager` (frontend `services/conversation/`) owns turn-taking, **barge-in** (the driver can interrupt Routiq mid-sentence), music permission (never auto-plays), language preference + mid-session switching, and quiet monitoring. **Groq** (`llama-3.3-70b-versatile`, backend-only key) provides conversational reasoning + semantic intent; deterministic safety rules in `app/services/intent.py` always override it (`EMERGENCY > FATIGUE > ROUTE > SAFETY > MUSIC > LANGUAGE > GENERAL`) and the LLM can only *propose* actions the app permits. **Sarvam** powers STT (Saaras v3) and natural Indian-voice TTS (Bulbul v3, cached) across 10 Indian languages + Indian English, including code-mixed speech — with browser fallbacks throughout. Live voice runs through an `AudioTransport` abstraction (browser mic today, car Bluetooth later).
+
+   **Production hardening**: outbound AI calls retry with exponential backoff + jitter (`http.py`), AI endpoints are rate-limited per client IP (`rate_limit.py`), the TTS phrase cache and the in-memory session store are bounded (LRU/TTL + cap), Sarvam is the default TTS provider, all client API calls abort on timeout, and live mode runs a risk-adaptive **check-in scheduler** (quiet monitoring → 60–120s healthy interval → shorter intervals as risk rises) so proactive prompts fire only when the cooldown has elapsed and the audio path is healthy. Keys stay backend-only — verified absent from responses, logs, and the built bundle.
 6. **One-Tap Emergency SOS Response**: Simulated crash detection with a 60-second confirmation countdown, GPS position, top 6 nearest hospitals ranked by actual driving ETA, location sharing, and emergency dial buttons.
 
 ---
@@ -115,4 +117,4 @@ Follow this step-by-step flow to test all features:
 ## 🛠️ Tech Stack Overview
 
 - **Frontend**: React 19, TypeScript, Vite, Tailwind CSS v4, Leaflet, React-Leaflet v5, Lucide Icons, Web Speech API.
-- **Backend**: Python, FastAPI, Uvicorn, Pydantic, HTTPX, OSRM / TomTom Routing, OpenWeather, Gemini 2.0 Flash AI.
+- **Backend**: Python, FastAPI, Uvicorn, Pydantic, HTTPX, OSRM / TomTom Routing, OpenWeather, Groq (`llama-3.3-70b-versatile`), Sarvam (Saaras v3 STT / Bulbul v3 TTS), ElevenLabs (optional).

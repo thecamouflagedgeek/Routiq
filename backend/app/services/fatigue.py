@@ -137,6 +137,25 @@ class FatigueEngine:
         self._default_language = default_language
 
     # ------------------------------------------------------------------ setup
+    # Production hygiene: sessions are in-memory; bound the store and evict
+    # the stalest session first so a long-running process cannot leak memory.
+    MAX_SESSIONS = 100
+
+    def _evict_if_needed(self) -> None:
+        if len(self._sessions) < self.MAX_SESSIONS:
+            return
+        if not self._last_event_at:
+            return
+        stalest = min(self._last_event_at, key=self._last_event_at.get)
+        for store in (
+            self._sessions,
+            self._baselines,
+            self._last_event_at,
+            self._adverse_streak,
+            self._good_streak,
+        ):
+            store.pop(stalest, None)
+
     def create_session(
         self,
         driver_name: str = "",
@@ -144,6 +163,7 @@ class FatigueEngine:
         thresholds: dict | None = None,
         language: str | None = None,
     ) -> FatigueSession:
+        self._evict_if_needed()
         sid = uuid.uuid4().hex[:12]
         session = FatigueSession(
             session_id=sid,
@@ -174,6 +194,10 @@ class FatigueEngine:
 
     def get(self, session_id: str) -> FatigueSession | None:
         return self._sessions.get(session_id)
+
+    @property
+    def session_count(self) -> int:
+        return len(self._sessions)
 
     def _thresholds(self, session: FatigueSession) -> FatigueThresholds:
         merged = FatigueThresholds().as_dict()

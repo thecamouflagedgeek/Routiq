@@ -18,6 +18,7 @@ import {
   initVoices,
   playAlertSound,
 } from '../speech'
+import { SarvamVadCapture } from './sarvamCapture'
 
 export interface AudioStatus {
   /** transport can operate in this environment */
@@ -28,6 +29,8 @@ export interface AudioStatus {
   speaking: boolean
   /** mic permission explicitly blocked */
   micBlocked: boolean
+  /** which speech recognizer is feeding the driver's voice in */
+  sttSource: 'browser' | 'sarvam' | 'none'
   /** last error message, if any */
   lastError: string | null
 }
@@ -74,7 +77,7 @@ export function classifyRecognitionError(code: string): 'microphone_error' | 'as
   if (code === 'not-allowed' || code === 'service-not-allowed' || code === 'audio-capture') {
     return 'microphone_error'
   }
-  if (code === 'network' || code === 'aborted' || code === 'language-not-supported' || code === 'bad-grammar') {
+  if (code === 'network' || code === 'aborted' || code === 'language-not-supported' || code === 'bad-grammar' || code === 'restart-failed') {
     return 'asr_error'
   }
   // 'no-speech' is NOT an error — the silence timer decides what it means.
@@ -192,11 +195,16 @@ export class AudioPlaybackManager {
 export function createBrowserAudioTransport(): AudioTransport {
   const music = new DemoMusic()
   const playback = new AudioPlaybackManager()
+  // Driver voice-in: Chromium's SpeechRecognition (low latency, interim
+  // results) OR the Sarvam Saaras v3 capture (works in every browser).
+  let useSarvamStt = !hasSpeechRecognition()
+  let sarvam: SarvamVadCapture | null = null
   let status: AudioStatus = {
-    supported: hasSpeechRecognition(),
+    supported: hasSpeechRecognition() || Boolean(navigator.mediaDevices?.getUserMedia),
     listening: false,
     speaking: false,
     micBlocked: false,
+    sttSource: useSarvamStt ? 'none' : 'browser',
     lastError: null,
   }
   const statusCbs = new Set<(s: AudioStatus) => void>()
@@ -204,6 +212,10 @@ export function createBrowserAudioTransport(): AudioTransport {
   let rec: ReturnType<typeof createRecognition> | null = null
   let started = false
   let currentLang = 'en-US'
+  /** Chrome can re-deliver the same final result when a recognizer restarts.
+   *  Ignore a final result that lands within this window of the previous one. */
+  let lastFinalAt = 0
+  const FINAL_DEDUPE_MS = 900
 
   const setStatus = (patch: Partial<AudioStatus>) => {
     status = { ...status, ...patch }
@@ -212,50 +224,67 @@ export function createBrowserAudioTransport(): AudioTransport {
 
   const emit = (e: SpeechEvent) => speechCbs.forEach((cb) => cb(e))
 
+  const ensureSarvamCapture = () => {
+    if (!useSarvamStt || sarvam) return
+    sarvam = new SarvamVadCapture({
+      onEvent: emit,
+      onStatus: (s) => setStatus({ listening: s.listening, micBlocked: s.micBlocked }),
+    })
+    void sarvam.start().then((ok) => {
+      if (ok) setStatus({ sttSource: 'sarvam', listening: true })
+      else setStatus({ sttSource: 'none', micBlocked: true })
+    })
+  }
+
+  /** Fall back to the Sarvam Saaras capture when the browser recognizer
+   *  hard-fails (permission is still fine — ASR itself broke). */
+  const fallbackToSarvamCapture = () => {
+    if (useSarvamStt || !navigator.mediaDevices?.getUserMedia) return
+    useSarvamStt = true
+    rec?.stop()
+    rec = null
+    ensureSarvamCapture()
+  }
+
+  const handleRecognitionError = (code: string) => {
+    const kind = classifyRecognitionError(code)
+    if (kind === 'microphone_error') {
+      setStatus({ listening: false, micBlocked: true, lastError: code })
+    } else if (kind === 'asr_error') {
+      setStatus({ listening: false, lastError: code })
+      // ASR broke while the mic permission is fine — keep listening via Sarvam.
+      fallbackToSarvamCapture()
+    } else {
+      setStatus({ listening: false })
+    }
+    emit({ kind: 'error', error: code })
+  }
+
+  const makeRecognition = () =>
+    createRecognition({
+      language: currentLang,
+      onStart: () => setStatus({ listening: true }),
+      onEnd: () => setStatus({ listening: false }),
+      onSpeechStart: () => emit({ kind: 'speechstart' }),
+      onResult: (finalText, interimText, confidence) => {
+        if (finalText) {
+          const now = performance.now()
+          if (now - lastFinalAt < FINAL_DEDUPE_MS) return
+          lastFinalAt = now
+        }
+        emit({ kind: 'result', finalText, interimText, confidence })
+      },
+      onError: handleRecognitionError,
+    })
+
   const ensureRecognition = () => {
     if (!rec) {
-      rec = createRecognition({
-        language: currentLang,
-        onStart: () => setStatus({ listening: true }),
-        onEnd: () => setStatus({ listening: false }),
-        onSpeechStart: () => emit({ kind: 'speechstart' }),
-        onResult: (finalText, interimText, confidence) =>
-          emit({ kind: 'result', finalText, interimText, confidence }),
-        onError: (code) => {
-          const kind = classifyRecognitionError(code)
-          if (kind === 'microphone_error') {
-            setStatus({ listening: false, micBlocked: true, lastError: code })
-          } else if (kind === 'asr_error') {
-            setStatus({ listening: false, lastError: code })
-          } else {
-            setStatus({ listening: false })
-          }
-          emit({ kind: 'error', error: code })
-        },
-      })
+      rec = makeRecognition()
       return
     }
-    if (rec.isSupported && rec && currentLang && (rec as any).lang !== currentLang) {
+    if (rec.isSupported && currentLang && rec.lang !== currentLang) {
       rec.stop()
-      rec = createRecognition({
-        language: currentLang,
-        onStart: () => setStatus({ listening: true }),
-        onEnd: () => setStatus({ listening: false }),
-        onSpeechStart: () => emit({ kind: 'speechstart' }),
-        onResult: (finalText, interimText, confidence) =>
-          emit({ kind: 'result', finalText, interimText, confidence }),
-        onError: (code) => {
-          const kind = classifyRecognitionError(code)
-          if (kind === 'microphone_error') {
-            setStatus({ listening: false, micBlocked: true, lastError: code })
-          } else if (kind === 'asr_error') {
-            setStatus({ listening: false, lastError: code })
-          } else {
-            setStatus({ listening: false })
-          }
-          emit({ kind: 'error', error: code })
-        },
-      })
+      rec = makeRecognition()
     }
   }
 
@@ -269,12 +298,15 @@ export function createBrowserAudioTransport(): AudioTransport {
       started = true
       playback.start()
       initVoices()
-      ensureRecognition()
+      if (useSarvamStt) ensureSarvamCapture()
+      else ensureRecognition()
       setStatus({ supported: true, micBlocked: false, lastError: null })
     },
     stop() {
       started = false
       rec?.stop()
+      sarvam?.stop()
+      sarvam = null
       playback.stop()
       music.stop()
       setStatus({ listening: false, speaking: false })
@@ -283,6 +315,10 @@ export function createBrowserAudioTransport(): AudioTransport {
     stopMusic: () => music.stop(),
     ask() {
       if (!started) return
+      if (useSarvamStt) {
+        ensureSarvamCapture()
+        return
+      }
       if (!rec) ensureRecognition()
       if (!rec?.isSupported) return
       setStatus({ listening: true })
@@ -294,11 +330,17 @@ export function createBrowserAudioTransport(): AudioTransport {
     },
     setLanguage(language) {
       currentLang = language || 'en-US'
+      if (useSarvamStt) {
+        ensureSarvamCapture()
+        sarvam?.setLanguage(language)
+        return
+      }
       if (rec) {
         ensureRecognition()
       }
     },
     stopListening() {
+      if (useSarvamStt) return // continuous VAD — the capture owns listening
       rec?.stop()
       setStatus({ listening: false })
     },
@@ -352,7 +394,7 @@ export class CarBluetoothTransport implements AudioTransport {
   }
 
   start() {
-    this.notify({ supported: false, listening: false, speaking: false, micBlocked: false, lastError: 'native Bluetooth audio adapter not yet available in the web prototype' })
+    this.notify({ supported: false, listening: false, speaking: false, micBlocked: false, sttSource: 'none', lastError: 'native Bluetooth audio adapter not yet available in the web prototype' })
   }
   stop() {}
   ask() {}
@@ -367,7 +409,7 @@ export class CarBluetoothTransport implements AudioTransport {
   alert() {}
   onStatus(cb: (s: AudioStatus) => void) {
     this.cbs.add(cb)
-    this.notify({ supported: false, listening: false, speaking: false, micBlocked: false, lastError: null })
+    this.notify({ supported: false, listening: false, speaking: false, micBlocked: false, sttSource: 'none', lastError: null })
     return () => this.cbs.delete(cb)
   }
   onSpeech() {
@@ -377,8 +419,23 @@ export class CarBluetoothTransport implements AudioTransport {
 
 import { createElevenLabsTransport } from './elevenLabsTransport'
 
-/** Composition root: swap to the car transport here in the native build. */
+/**
+ * Composition root: swap to the car transport here in the native build.
+ *
+ * The primary voice stack is Groq (conversation) + Sarvam (STT/TTS) with
+ * browser speech as input and browser-TTS fallback — see conversation/
+ * manager.ts. The ElevenLabs Conversational agent transport is available as
+ * an explicit opt-in (VITE_TRANSPORT=elevenlabs) for teams that run an agent;
+ * it is NOT the default because it short-circuits the Groq/Sarvam pipeline.
+ */
 export function createAudioTransport(kind: 'browser' | 'car'): AudioTransport {
-  // Use ElevenLabs transport as the primary voice layer for the browser
-  return kind === 'car' ? new CarBluetoothTransport() : createElevenLabsTransport()
+  if (kind === 'car') return new CarBluetoothTransport()
+  try {
+    if (import.meta.env.VITE_TRANSPORT === 'elevenlabs') {
+      return createElevenLabsTransport()
+    }
+  } catch {
+    /* import.meta.env unavailable — default to the browser transport */
+  }
+  return createBrowserAudioTransport()
 }

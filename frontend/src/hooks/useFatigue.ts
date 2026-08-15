@@ -80,6 +80,7 @@ export function useFatigue(onGoEmergency?: () => void) {
   const [driver, setDriver] = useState<DriverState>(EMPTY_DRIVER)
   const [listening, setListening] = useState(false)
   const [micBlocked, setMicBlocked] = useState(false)
+  const [sttSource, setSttSource] = useState<'browser' | 'sarvam' | 'none'>('none')
   const [thresholds, setThresholds] = useState<FatigueThresholds>(() => {
     try {
       const saved = localStorage.getItem('roadsafe.thresholds')
@@ -133,6 +134,21 @@ export function useFatigue(onGoEmergency?: () => void) {
       intent?: string | null
       simulated?: boolean
     }): Promise<DriverState> => {
+      // Demo mode simulates a healthy audio path: the host's real microphone
+      // state is environmental noise, so mic/ASR failures never reach the
+      // engine — otherwise a blocked host mic would derail the demo arc.
+      const isMicFailure =
+        ev.event_type === 'microphone_error' ||
+        ev.event_type === 'audio_failure' ||
+        ev.event_type === 'asr_error'
+      if (modeRef.current === 'demo' && isMicFailure) {
+        return toDriverState(
+          localEngineRef.current,
+          sessionIdRef.current || 'local',
+          'demo',
+          null,
+        )
+      }
       // Always advance the local engine as a continuously-synced shadow: it
       // powers scripted prompt selection and offline fallback.
       localEngineRef.current = applyEvent(localEngineRef.current, ev, thresholdsRef.current)
@@ -198,6 +214,7 @@ export function useFatigue(onGoEmergency?: () => void) {
     const offStatus = t.onStatus((s) => {
       setListening(s.listening)
       setMicBlocked(s.micBlocked)
+      setSttSource(s.sttSource)
     })
     const offSpeech = t.onSpeech((e) => {
       manager.onSpeechEvent({
@@ -314,6 +331,7 @@ export function useFatigue(onGoEmergency?: () => void) {
     elapsed: managerState.elapsed,
     listening,
     micBlocked,
+    sttSource,
     transcript: managerState.transcript,
     lastLatency: managerState.lastLatency,
     thresholds,

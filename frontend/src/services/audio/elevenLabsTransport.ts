@@ -16,6 +16,7 @@ export function createElevenLabsTransport(
     listening: false,
     speaking: false,
     micBlocked: false,
+    sttSource: 'browser',
     lastError: null,
   }
 
@@ -110,7 +111,7 @@ export function createElevenLabsTransport(
         conversation.endSession()
         conversation = null
       }
-      setStatus({ listening: false, speaking: false })
+      setStatus({ listening: false, speaking: false, sttSource: 'none' })
     },
     ask() {
       // ElevenLabs is continuous WebRTC, no manual ask needed

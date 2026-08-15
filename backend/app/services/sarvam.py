@@ -12,19 +12,42 @@ Rules:
 """
 from __future__ import annotations
 
-import base64
+import time
+from collections import OrderedDict
 from typing import Any
 
-import httpx
-
 from app.config import settings
+from app.services.http import Log, request_with_retry, safe_exc
 
 # Deterministic TTS phrases are cached to cut latency + API spend. Only
-# short, fixed utterances qualify (personalized replies never are).
-_TTS_CACHE: dict[tuple[str, str], str] = {}
+# short, fixed utterances qualify (personalized replies never are). The
+# cache is BOUNDED (LRU + TTL) so a long-running process cannot leak memory
+# — entries expire and the oldest are evicted beyond the cap.
+_TTS_CACHE: OrderedDict[tuple[str, str], tuple[float, str]] = OrderedDict()
+_TTS_CACHE_MAX = 256
+_TTS_CACHE_TTL_S = 60 * 60  # 1 hour
 
 CACHEABLE_MIN_LEN = 2
 CACHEABLE_MAX_LEN = 60
+
+
+def _cache_get(key: tuple[str, str]) -> str | None:
+    item = _TTS_CACHE.get(key)
+    if item is None:
+        return None
+    ts, audio = item
+    if time.time() - ts > _TTS_CACHE_TTL_S:
+        _TTS_CACHE.pop(key, None)
+        return None
+    _TTS_CACHE.move_to_end(key)
+    return audio
+
+
+def _cache_put(key: tuple[str, str], audio: str) -> None:
+    _TTS_CACHE[key] = (time.time(), audio)
+    _TTS_CACHE.move_to_end(key)
+    while len(_TTS_CACHE) > _TTS_CACHE_MAX:
+        _TTS_CACHE.popitem(last=False)
 
 
 class SarvamService:
@@ -63,14 +86,16 @@ class SarvamService:
             }
             if language_hint and language_hint != "auto":
                 files["language_code"] = (None, language_hint)
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                resp = await client.post(
-                    f"{self.base}/speech-to-text",
-                    headers=self._headers(),
-                    files=files,
-                )
-                resp.raise_for_status()
-                data = resp.json()
+            resp = await request_with_retry(
+                "POST",
+                f"{self.base}/speech-to-text",
+                headers=self._headers(),
+                files=files,
+                timeout=self.timeout,
+                tag="sarvam",
+            )
+            resp.raise_for_status()
+            data = resp.json()
             transcript = (data.get("transcript") or "").strip()
             if not transcript:
                 return None
@@ -81,7 +106,7 @@ class SarvamService:
                 "provider": "sarvam",
             }
         except Exception as exc:  # noqa: BLE001 — fail soft
-            print(f"[sarvam] stt failed ({type(exc).__name__}) — browser STT fallback", flush=True)
+            Log.warn("sarvam", f"stt failed ({safe_exc(exc)}) — browser STT fallback")
             return None
 
     # ------------------------------------------------------------------ TTS
@@ -94,34 +119,36 @@ class SarvamService:
         # Deterministic short utterances (acknowledgements, offers) are cached.
         key = (text, language)
         if settings.tts_cache_enabled and CACHEABLE_MIN_LEN <= len(text) <= CACHEABLE_MAX_LEN:
-            hit = _TTS_CACHE.get(key)
+            hit = _cache_get(key)
             if hit:
                 return {"audio_base64": hit, "format": "wav", "source": "sarvam", "cached": True}
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                resp = await client.post(
-                    f"{self.base}/text-to-speech",
-                    headers=self._headers(),
-                    json={
-                        "text": text,
-                        "language_code": language,
-                        "speaker": self.tts_voice,
-                        "model": self.tts_model,
-                        "pace": 1.0,
-                        "speech_sample_rate": 24000,
-                    },
-                )
-                resp.raise_for_status()
-                data = resp.json()
+            resp = await request_with_retry(
+                "POST",
+                f"{self.base}/text-to-speech",
+                headers=self._headers(),
+                json={
+                    "text": text,
+                    "language_code": language,
+                    "speaker": self.tts_voice,
+                    "model": self.tts_model,
+                    "pace": 1.0,
+                    "speech_sample_rate": 24000,
+                },
+                timeout=self.timeout,
+                tag="sarvam",
+            )
+            resp.raise_for_status()
+            data = resp.json()
             audios = data.get("audios") or []
             if not audios:
                 return None
             combined = "".join(audios)
             if settings.tts_cache_enabled and CACHEABLE_MIN_LEN <= len(text) <= CACHEABLE_MAX_LEN:
-                _TTS_CACHE[key] = combined
+                _cache_put(key, combined)
             return {"audio_base64": combined, "format": "wav", "source": "sarvam", "provider": "sarvam", "cached": False}
         except Exception as exc:  # noqa: BLE001 — fail soft
-            print(f"[sarvam] tts failed ({type(exc).__name__}) — browser TTS fallback", flush=True)
+            Log.warn("sarvam", f"tts failed ({safe_exc(exc)}) — browser TTS fallback")
             return None
 
     # ----------------------------------------------------------- language id

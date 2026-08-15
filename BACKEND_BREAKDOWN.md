@@ -90,8 +90,27 @@ SENSE (audio events) → UNDERSTAND (personal baseline) → PREDICT (temporal ri
   (e.g. "yaar, main thak gaya hoon") is preserved.
 - **Security**: `GROQ_API_KEY` / `SARVAM_API_KEY` exist only in backend env
   config. `/api/config` reports only key NAMES that are configured; logs and
-  error surfaces are redacted (`groq.py` `_redacted`), and the keys never
-  appear in responses, frontend bundles, or git (`.env` is gitignored).
+  error surfaces are redacted (`http.py` `safe_exc` — exception type + HTTP
+  status only, never the message), and the keys never appear in responses,
+  frontend bundles, or git (`.env` is gitignored).
+
+**Production hardening** (`http.py`, `rate_limit.py`, `fatigue.py`)
+- **Retry with exponential backoff + full jitter**: every outbound call to
+  Groq / Sarvam / ElevenLabs goes through `request_with_retry` (3 attempts,
+  0.35s base, 2.5s max). Transient 408/429/5xx and network errors are retried
+  — a single blip never fails a conversation turn; deterministic 4xx are
+  returned immediately. Bounded per-call timeouts keep the total budget sane.
+- **Rate limiting** (in-memory sliding window, per client IP): `30/min`
+  chat, `40/min` TTS, `30/min` STT, `120/min` events, `5/min` emergency,
+  `10/min` ElevenLabs token. Protects the AI-provider budget from misbehaving
+  or looped clients (429).
+- **Bounded TTS cache**: deterministic phrases are cached LRU (256 entries,
+  1h TTL) — no unbounded growth in long-running processes.
+- **Bounded session store**: in-memory sessions are capped (100); the
+  stalest session is evicted first, so the engine cannot leak memory.
+- **Sarvam is the default TTS provider** (`TTS_PROVIDER=sarvam`, Bulbul v3);
+  ElevenLabs remains available as an alternative. The frontend plays any
+  remote TTS source (sarvam/elevenlabs) and falls back to browser speech.
 
 | Driver state | Risk band (temporal estimate) | Typical trigger |
 | :--- | :--- | :--- |

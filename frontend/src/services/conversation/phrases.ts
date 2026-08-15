@@ -124,6 +124,26 @@ export function classifyIntentClient(text: string): string {
   return 'GENERAL_CONVERSATION'
 }
 
+/**
+ * True when a recognized utterance is really the assistant's OWN voice
+ * echoing back through the microphone (the TTS coming out of the speakers).
+ * Used by the barge-in filter so the assistant never cuts itself off — only
+ * speech that does NOT match what is currently being spoken counts as a
+ * genuine driver interruption. Works across scripts (Devanagari, Tamil, ...).
+ */
+export function isTtsEcho(driverText: string, ttsText: string): boolean {
+  const norm = (t: string) =>
+    (t || '')
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}\s]/gu, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+  const driver = norm(driverText)
+  const tts = norm(ttsText)
+  if (driver.length < 2 || tts.length === 0) return false
+  return tts.includes(driver) || driver.includes(tts) || tts.startsWith(driver)
+}
+
 /** BCP-47 target when the utterance is a language switch. */
 const LANGUAGE_ALIASES: Record<string, string> = {
   english: 'en-IN',

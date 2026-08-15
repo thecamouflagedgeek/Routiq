@@ -15,9 +15,8 @@ from __future__ import annotations
 import json
 from typing import Any
 
-import httpx
-
 from app.config import settings
+from app.services.http import Log, request_with_retry, safe_exc
 
 SYSTEM_PROMPT = """You are Routiq, a calm conversational driving-safety assistant for India.
 
@@ -75,11 +74,6 @@ Rules:
 Reply with ONLY a JSON object: {"intent": "..."}."""
 
 
-def _redacted(values: dict) -> dict:
-    """Never let a key leak into a log/error surface."""
-    return {k: ("***" if "key" in k.lower() or "token" in k.lower() else v) for k, v in values.items()}
-
-
 class GroqConversationService:
     """Thin OpenAI-compatible client for Groq. Rest of Routiq never calls the
     Groq SDK directly — they call this service."""
@@ -94,26 +88,30 @@ class GroqConversationService:
         return settings.has_groq
 
     async def _chat(self, messages: list[dict], temperature: float = 0.6, max_tokens: int = 180) -> str | None:
+        """Single chat round-trip with retry + backoff. Returns None on any
+        failure so the caller falls back to scripted conversation."""
         if not self.available:
             return None
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                resp = await client.post(
-                    self.url,
-                    headers={"Authorization": f"Bearer {settings.groq_api_key}"},
-                    json={
-                        "model": self.model,
-                        "messages": messages,
-                        "temperature": temperature,
-                        "max_tokens": max_tokens,
-                    },
-                )
-                resp.raise_for_status()
-                data = resp.json()
+            resp = await request_with_retry(
+                "POST",
+                self.url,
+                headers={"Authorization": f"Bearer {settings.groq_api_key}"},
+                json={
+                    "model": self.model,
+                    "messages": messages,
+                    "temperature": temperature,
+                    "max_tokens": max_tokens,
+                },
+                timeout=self.timeout,
+                tag="groq",
+            )
+            resp.raise_for_status()
+            data = resp.json()
             return (data.get("choices") or [{}])[0].get("message", {}).get("content", "").strip()
         except Exception as exc:  # noqa: BLE001 — fail soft, fall back to scripted
-            # Log WITHOUT the key: only method + error class.
-            print(f"[groq] request failed ({type(exc).__name__}) — falling back", flush=True)
+            # Log WITHOUT the key: only tag + error class. Never the message.
+            Log.warn("groq", f"request failed ({safe_exc(exc)}) — falling back to scripted")
             return None
 
     # -------------------------------------------------------------- reasoning

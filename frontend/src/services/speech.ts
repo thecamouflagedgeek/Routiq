@@ -6,6 +6,8 @@ export interface RecognitionHandle {
   start: () => void
   stop: () => void
   isSupported: boolean
+  /** the recognition language this handle is configured for */
+  lang: string
 }
 
 type SR = {
@@ -48,11 +50,12 @@ export function createRecognition(
   }
   const Ctor = w.SpeechRecognition || w.webkitSpeechRecognition
   if (!Ctor) {
-    return { start: () => {}, stop: () => {}, isSupported: false }
+    return { start: () => {}, stop: () => {}, isSupported: false, lang: handlers.language || 'en-US' }
   }
 
   const rec = new Ctor()
   let shouldRestart = false
+  let restartFailures = 0
 
   rec.lang = handlers.language || 'en-US'
   rec.continuous = true
@@ -61,26 +64,48 @@ export function createRecognition(
 
   rec.onstart = () => {
     shouldRestart = true
+    restartFailures = 0
     handlers.onStart?.()
   }
   rec.onend = () => {
     handlers.onEnd?.()
-    if (shouldRestart) {
+    if (!shouldRestart) return
+    // Restart with a small backoff. Chrome can reject a restart that comes
+    // too fast ("already started" / "invalid state"); retrying a few times
+    // keeps the mic alive instead of dying silently forever. After sustained
+    // real failures we give up and surface 'restart-failed' so the transport
+    // can fall back to the Sarvam capture.
+    restartFailures += 1
+    const tryStart = () => {
+      if (!shouldRestart) return
       try {
-        window.setTimeout(() => {
-          if (shouldRestart) {
-            rec.start()
-          }
-        }, 120)
-      } catch {
-        /* noop */
+        rec.start()
+      } catch (err) {
+        // Already running (start raced with an onend) — treat as success.
+        if (err instanceof DOMException && (err.name === 'InvalidStateError' || err.name === 'InvalidModificationError')) {
+          restartFailures = 0
+          return
+        }
+        if (restartFailures >= 6) {
+          shouldRestart = false
+          handlers.onError?.('restart-failed')
+          return
+        }
+        restartFailures += 1
+        window.setTimeout(tryStart, Math.min(900, 150 * restartFailures))
       }
     }
+    window.setTimeout(tryStart, Math.min(900, 150 * restartFailures))
   }
   rec.onspeechstart = () => handlers.onSpeechStart?.()
   rec.onerror = (e) => {
-    if (e.error === 'aborted') {
-      shouldRestart = false
+    // Transient / environmental codes must NOT kill the microphone: keep
+    // listening and restart. Only hard permission failures stop the loop.
+    const transient = ["no-speech", "aborted", "network", "audio-capture"].includes(e.error)
+    if (transient) {
+      shouldRestart = true
+      // surface soft errors (no-speech is expected — skip it)
+      if (e.error !== "no-speech") handlers.onError?.(e.error)
       return
     }
     shouldRestart = false
@@ -106,10 +131,11 @@ export function createRecognition(
   return {
     start: () => {
       shouldRestart = true
+      restartFailures = 0
       try {
         rec.start()
       } catch {
-        /* already started */
+        /* already started — continuous recognition is running */
       }
     },
     stop: () => {
@@ -121,6 +147,7 @@ export function createRecognition(
       }
     },
     isSupported: true,
+    lang: handlers.language || 'en-US',
   }
 }
 

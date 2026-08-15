@@ -270,7 +270,7 @@ export interface FatigueChatResponse {
 export interface TTSResponse {
   audio_base64: string | null
   format: string
-  source: 'sarvam' | 'browser' | 'none'
+  source: 'sarvam' | 'elevenlabs' | 'browser' | 'none'
   provider: string
   cached: boolean
   fallback: boolean

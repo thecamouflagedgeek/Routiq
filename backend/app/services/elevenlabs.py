@@ -8,9 +8,8 @@ from __future__ import annotations
 
 from typing import Any
 
-import httpx
-
 from app.config import settings
+from app.services.http import Log, request_with_retry, safe_exc
 
 
 class ElevenLabsService:
@@ -43,10 +42,16 @@ class ElevenLabsService:
         }
 
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                resp = await client.post(self.url, headers=headers, json=payload)
-                resp.raise_for_status()
-                data = resp.content
+            resp = await request_with_retry(
+                "POST",
+                self.url,
+                headers=headers,
+                json=payload,
+                timeout=self.timeout,
+                tag="elevenlabs",
+            )
+            resp.raise_for_status()
+            data = resp.content
             if not data:
                 return None
             import base64
@@ -58,7 +63,7 @@ class ElevenLabsService:
                 "cached": False,
             }
         except Exception as exc:  # noqa: BLE001 — fail soft to browser TTS
-            print(f"[elevenlabs] tts failed ({type(exc).__name__}) — browser TTS fallback", flush=True)
+            Log.warn("elevenlabs", f"tts failed ({safe_exc(exc)}) — browser TTS fallback")
             return None
 
 

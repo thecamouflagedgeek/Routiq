@@ -15,16 +15,29 @@ import type {
   TTSResponse,
 } from '../types'
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
-    ...init,
-  })
-  if (!res.ok) {
-    const body = await res.text().catch(() => '')
-    throw new Error(`API ${res.status}: ${body.slice(0, 200)}`)
+/**
+ * Abort a fetch after `timeoutMs` so a hung backend can never wedge a
+ * conversational turn or leave a promise dangling forever. Long-running
+ * calls (TTS synthesis) get a larger budget than chat.
+ */
+async function request<T>(path: string, init?: RequestInit, timeoutMs = 15000): Promise<T> {
+  const controller = new AbortController()
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs)
+  const signal = init?.signal ? init.signal : controller.signal
+  try {
+    const res = await fetch(`${API_BASE}${path}`, {
+      headers: { 'Content-Type': 'application/json' },
+      ...init,
+      signal,
+    })
+    if (!res.ok) {
+      const body = await res.text().catch(() => '')
+      throw new Error(`API ${res.status}: ${body.slice(0, 200)}`)
+    }
+    return res.json() as Promise<T>
+  } finally {
+    window.clearTimeout(timer)
   }
-  return res.json() as Promise<T>
 }
 
 export const api = {
@@ -105,22 +118,31 @@ export const api = {
   },
 
   fatigueChat(opts: FatigueChatRequest): Promise<FatigueChatResponse> {
-    return request<FatigueChatResponse>('/fatigue/chat', {
-      method: 'POST',
-      body: JSON.stringify(opts),
-    })
+    // Chat turns must resolve fast — 12s covers retries + backoff, never hangs.
+    return request<FatigueChatResponse>(
+      '/fatigue/chat',
+      {
+        method: 'POST',
+        body: JSON.stringify(opts),
+      },
+      12000,
+    )
   },
 
   /** Sarvam Saaras v3 STT — returns transcript + detected language, or
    *  source="error" so the caller falls back to browser speech. */
-  fatigueTranscribe(blob: Blob, languageHint = 'auto'): Promise<TranscribeResponse> {
+  async fatigueTranscribe(blob: Blob, languageHint = 'auto'): Promise<TranscribeResponse> {
     const form = new FormData()
     form.append('file', blob, 'speech.wav')
     form.append('language_hint', languageHint)
-    return fetch(`${API_BASE}/fatigue/audio/transcribe`, {
-      method: 'POST',
-      body: form,
-    }).then(async (res) => {
+    const controller = new AbortController()
+    const timer = window.setTimeout(() => controller.abort(), 20000)
+    try {
+      const res = await fetch(`${API_BASE}/fatigue/audio/transcribe`, {
+        method: 'POST',
+        body: form,
+        signal: controller.signal,
+      })
       if (!res.ok) {
         const body = await res.text().catch(() => '')
         throw new Error(`API ${res.status}: ${body.slice(0, 200)}`)
@@ -131,15 +153,22 @@ export const api = {
         provider: data.provider ?? 'sarvam',
         fallback: Boolean(data.fallback),
       }
-    })
+    } finally {
+      window.clearTimeout(timer)
+    }
   },
 
   /** Sarvam Bulbul v3 TTS — base64 audio, or source="browser" fallback. */
   fatigueTTS(text: string, language: string): Promise<TTSResponse> {
-    return request<TTSResponse>('/fatigue/tts', {
-      method: 'POST',
-      body: JSON.stringify({ text, language }),
-    }).then((data) => ({
+    // Synthesis is the slowest call in the loop (Sarvam render + retries).
+    return request<TTSResponse>(
+      '/fatigue/tts',
+      {
+        method: 'POST',
+        body: JSON.stringify({ text, language }),
+      },
+      25000,
+    ).then((data) => ({
       ...data,
       provider: data.provider ?? 'sarvam',
       fallback: Boolean(data.fallback),
