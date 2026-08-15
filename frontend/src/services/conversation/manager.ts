@@ -18,6 +18,34 @@
  *
  * The hook (useFatigue.ts) is a thin React adapter: it wires the transport,
  * api + engine, then mirrors this manager's state into React.
+ *
+ * ---------------------------------------------------------------------
+ * FIX LOG (audio pipeline reliability pass)
+ * ---------------------------------------------------------------------
+ * 1. driverInitiatedFlow() previously called setPhase('analyzing') and had
+ *    NO path back to 'quiet' on the driver-initiated branch (only the
+ *    prompt/response branch in onDriverSpeech() closed the loop). Every
+ *    exit of driverInitiatedFlow (success reply, catch fallback, and the
+ *    two early-return actions) left `phase` stuck at 'analyzing' forever.
+ *    Because onDriverSpeech() guards on `this.phase === 'analyzing'`, the
+ *    mic kept capturing audio just fine but every subsequent transcript
+ *    was silently discarded — this was the "mic dies after ~2 turns" bug.
+ *    Fix: speakText() now takes an onComplete callback and every reply
+ *    path in driverInitiatedFlow explicitly returns to 'quiet' (via
+ *    setPhase, which also re-arms t.ask() in live mode) once Routiq
+ *    actually finishes speaking. Only the music/emergency action paths
+ *    are exempt, since they hand control to a different explicit
+ *    transition (issuePrompt -> 'waiting', or onEmergency()).
+ *
+ * 2. speakText() previously fell back to browser speechSynthesis
+ *    (speakBrowser) whenever Sarvam returned a non-Sarvam source, the
+ *    fetch rejected, or a 2.5s timer elapsed first. That is a silent,
+ *    ungated provider switch — exactly the "audio mixing" behavior that
+ *    must never happen. Sarvam is now the only TTS provider with no
+ *    hidden fallback: a failure emits a `tts_failed` event (for the UI /
+ *    diagnostics to surface "Voice response unavailable. Please try
+ *    again.") and returns the turn to LISTENING without producing any
+ *    audio. speakBrowser() has been removed — it has no remaining caller.
  */
 import { api } from '../api'
 import type { AudioTransport } from '../audio/transport'
@@ -87,6 +115,7 @@ export class ConversationManager {
       ...this.history.slice(-(MAX_HISTORY - 1)),
       { role, text, at: performance.now(), intent },
     ]
+    this.turnCount += 1
   }
   private deps: ManagerDeps
 
@@ -104,6 +133,8 @@ export class ConversationManager {
   private speaking = false
   private lastIntent = ''
   private lastAction: { type: string } | null = null
+  /** dev diagnostics: total turns pushed into history this session */
+  private turnCount = 0
 
   // --- refs --------------------------------------------------------------
   private questionStartRef = 0
@@ -253,7 +284,13 @@ export class ConversationManager {
     }
   }
 
-  /** Sarvam TTS first (natural Indian voice), browser speech fallback. */
+  /**
+   * Sarvam TTS — the ONLY spoken-output path. There is deliberately no
+   * hidden browser-speech fallback here: if Sarvam fails, we surface a
+   * `tts_failed` event (for the UI: "Voice response unavailable. Please
+   * try again.") and return control to LISTENING with no audio at all,
+   * rather than silently switching voice providers mid-session.
+   */
   private speakText(text: string, opts?: { rate?: number; onComplete?: () => void }) {
     if (!this.ttsEnabled) {
       opts?.onComplete?.()
@@ -274,55 +311,34 @@ export class ConversationManager {
     }
     this.speaking = true
     this.emit()
-    // Live AND demo both prefer the Sarvam natural voice; browser speech is
-    // the graceful fallback (offline, slow render, or Sarvam failure).
-    let settled = false
-    const fallbackToBrowser = () => {
-      if (settled) return
-      settled = true
-      this.speakBrowser(text, { ...opts, onComplete: complete })
+
+    const onTtsFailure = (reason: string) => {
+      if (!this.deps.isActive()) return
+      this.deps
+        .emitEvent({ event_type: 'tts_failed', error_code: reason, transcript: text, language })
+        .catch(() => {})
+      // Surface to the UI diagnostics / status strip; the mic is NOT
+      // affected — TTS failure must never kill listening.
+      this.lastAction = { type: 'tts_error' }
+      this.emit()
+      complete()
     }
-    const remoteRequest = api
+
+    api
       .fatigueTTS(text, language)
       .then((res) => {
-        if (!this.deps.isActive() || settled) return
-        if (res.audio_base64 && (res.source === 'sarvam' || res.source === 'elevenlabs')) {
-          settled = true
+        if (!this.deps.isActive()) return
+        if (res.audio_base64 && res.source === 'sarvam') {
           this.deps.emitEvent({ event_type: 'tts_started', transcript: text, language }).catch(() => {})
+          // Mic stays alive through playback — MIC and TTS are separate
+          // lifecycles. t.ask() re-arms listening for barge-in immediately.
           t.ask()
           t.playRemoteAudio(res.audio_base64, res.format, complete)
           return
         }
-        fallbackToBrowser()
+        onTtsFailure(res.source ? `unexpected-provider:${res.source}` : 'no-audio')
       })
-      .catch(() => fallbackToBrowser())
-
-    // Give Sarvam enough time to synthesize — a slow render must not
-    // silently demote the natural voice to browser speech.
-    window.setTimeout(() => {
-      if (!settled) fallbackToBrowser()
-    }, 2500)
-
-    void remoteRequest
-  }
-
-  private speakBrowser(text: string, opts?: { rate?: number; onComplete?: () => void }) {
-    const t = this.deps.transport()
-    if (!t) {
-      opts?.onComplete?.()
-      return
-    }
-    this.deps.emitEvent({ event_type: 'tts_started', transcript: text, language: this.language }).catch(() => {})
-    t.speak(text, {
-      rate: opts?.rate ?? 1.0,
-      onEnd: () => {
-        opts?.onComplete?.()
-      },
-    })
-    if (this.deps.mode() === 'live') {
-      // Start listening so the driver can barge in while we talk.
-      t.ask()
-    }
+      .catch(() => onTtsFailure('request-failed'))
   }
 
   /** Driver began speaking while we were talking — interrupt TTS.
@@ -580,7 +596,20 @@ export class ConversationManager {
     }
   }
 
-  /** Groq answers driver-initiated turns; deterministic policy gates actions. */
+  /**
+   * Groq answers driver-initiated turns; deterministic policy gates actions.
+   *
+   * IMPORTANT: every branch of this method must end in one of:
+   *   - a call to speakText(..., { onComplete: returnToListening }), which
+   *     puts the manager back into 'quiet' (and re-arms the mic) once Routiq
+   *     actually finishes speaking, or
+   *   - a hand-off to another explicit state transition (issuePrompt ->
+   *     'waiting' for the music offer, onEmergency() for emergencies).
+   * Leaving `phase` sitting at 'analyzing' with no path out is what caused
+   * the microphone to appear "dead" after a driver-initiated turn: every
+   * later transcript was silently dropped by the `phase === 'analyzing'`
+   * guard in onDriverSpeech(), even though the mic itself was still live.
+   */
   private async driverInitiatedFlow(transcript: string) {
     this.setPhase('analyzing')
     this.lastLatency = null
@@ -598,6 +627,13 @@ export class ConversationManager {
       .emitEvent({ event_type: 'driver_initiated', transcript, language: this.language })
       .catch(() => {})
     this.deps.emitEvent({ event_type: 'intent_detected', intent, transcript, language: this.language }).catch(() => {})
+
+    const returnToListening = () => {
+      if (!this.deps.isActive()) return
+      // setPhase('quiet') also calls transport().ask() in live mode, which
+      // is what actually re-arms the microphone for the next turn.
+      this.setPhase('quiet')
+    }
 
     try {
       const res = await api.fatigueChat({
@@ -623,24 +659,27 @@ export class ConversationManager {
       // policy layer — the LLM proposes, the app decides
       const action = res.action?.type
       if (action === 'music_request') {
-        // never auto-play: ask permission
+        // never auto-play: ask permission. offerMusic() -> issuePrompt()
+        // owns the next transition ('waiting'), so we do NOT also call
+        // returnToListening here.
         this.later(() => this.offerMusic(), 500)
         return
       }
       if (action === 'emergency') {
+        // onEmergency() owns whatever comes next for this session.
         this.deps.onEmergency()
         return
       }
       const reply = res.reply || scriptedForIntent(res.intent, 'I’m here.')
       this.pushTurn('routiq', reply)
       this.emit()
-      this.speakText(reply)
+      this.speakText(reply, { onComplete: returnToListening })
     } catch {
       if (!this.deps.isActive()) return
       const reply = scriptedForIntent(intent, "I'm here. Ask me about the road ahead whenever you need.")
       this.pushTurn('routiq', reply)
       this.emit()
-      this.speakText(reply)
+      this.speakText(reply, { onComplete: returnToListening })
     }
   }
 
@@ -747,6 +786,7 @@ export class ConversationManager {
     this.deps.transport()?.start()
     this.musicConsent = 'idle'
     this.history = []
+    this.turnCount = 0
     this.lastLatency = null
     this.setPhase('starting')
     this.startCooldownLoop()
@@ -935,6 +975,20 @@ export class ConversationManager {
     const start = this.deps.sessionStart()
     if (start == null) return undefined
     return (performance.now() - start) / 1000
+  }
+
+  /** Dev diagnostics: total conversation turns (driver + routiq) pushed
+   *  into history this session. Pairs with `phase` to answer "why did the
+   *  Nth turn die" without reading code. */
+  getTurnCount(): number {
+    return this.turnCount
+  }
+
+  /** Dev diagnostics: raw internal phase, distinct from the user-facing
+   *  conversationState() label — this is what onDriverSpeech()'s guard
+   *  actually checks, so it is the single most useful diagnostic value. */
+  getPhase(): SleepPhase {
+    return this.phase
   }
 
   // ------------------------------------------------------ transport feed
