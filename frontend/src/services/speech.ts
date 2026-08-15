@@ -32,13 +32,16 @@ interface SpeechRecognitionLike {
   abort: () => void
 }
 
-export function createRecognition(handlers: {
-  onStart?: () => void
-  onEnd?: () => void
-  onSpeechStart?: () => void
-  onResult: (finalTranscript: string, interimTranscript: string, confidence?: number) => void
-  onError?: (error: string) => void
-}): RecognitionHandle {
+export function createRecognition(
+  handlers: {
+    onStart?: () => void
+    onEnd?: () => void
+    onSpeechStart?: () => void
+    onResult: (finalTranscript: string, interimTranscript: string, confidence?: number) => void
+    onError?: (error: string) => void
+    language?: string
+  },
+): RecognitionHandle {
   const w = window as unknown as {
     SpeechRecognition?: SR
     webkitSpeechRecognition?: SR
@@ -49,15 +52,40 @@ export function createRecognition(handlers: {
   }
 
   const rec = new Ctor()
-  rec.lang = 'en-US'
+  let shouldRestart = false
+
+  rec.lang = handlers.language || 'en-US'
   rec.continuous = true
   rec.interimResults = true
   rec.maxAlternatives = 1
 
-  rec.onstart = () => handlers.onStart?.()
-  rec.onend = () => handlers.onEnd?.()
+  rec.onstart = () => {
+    shouldRestart = true
+    handlers.onStart?.()
+  }
+  rec.onend = () => {
+    handlers.onEnd?.()
+    if (shouldRestart) {
+      try {
+        window.setTimeout(() => {
+          if (shouldRestart) {
+            rec.start()
+          }
+        }, 120)
+      } catch {
+        /* noop */
+      }
+    }
+  }
   rec.onspeechstart = () => handlers.onSpeechStart?.()
-  rec.onerror = (e) => handlers.onError?.(e.error)
+  rec.onerror = (e) => {
+    if (e.error === 'aborted') {
+      shouldRestart = false
+      return
+    }
+    shouldRestart = false
+    handlers.onError?.(e.error)
+  }
 
   rec.onresult = (e) => {
     let final = ''
@@ -77,6 +105,7 @@ export function createRecognition(handlers: {
 
   return {
     start: () => {
+      shouldRestart = true
       try {
         rec.start()
       } catch {
@@ -84,6 +113,7 @@ export function createRecognition(handlers: {
       }
     },
     stop: () => {
+      shouldRestart = false
       try {
         rec.stop()
       } catch {
@@ -139,15 +169,15 @@ export function speak(text: string, opts?: { rate?: number; pitch?: number; onEn
     opts?.onEnd?.()
     return false
   }
-  // Short, calm utterances — never a navigation-robot monotone.
   const clean = text.replace(/[\u2014\u2013]/g, ', ').replace(/\s{2,}/g, ' ').trim()
-  window.speechSynthesis.cancel()
   const utter = new SpeechSynthesisUtterance(clean)
   utter.rate = opts?.rate ?? 0.98
   utter.pitch = opts?.pitch ?? 1.0
   const voice = pickVoice()
   if (voice) utter.voice = voice
   utter.onend = () => opts?.onEnd?.()
+  utter.onerror = () => opts?.onEnd?.()
+  window.speechSynthesis.cancel()
   window.speechSynthesis.speak(utter)
   return true
 }

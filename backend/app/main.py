@@ -47,6 +47,7 @@ from app.providers.weather import get_weather
 from app.services.ai import assistant_reply
 from app.services.emergency import activate_emergency
 from app.services.fatigue import FatigueEngine
+from app.services.elevenlabs import elevenlabs_service
 from app.services.groq import groq_service
 from app.services.intent import classify_intent, merge_intent, target_language_for
 from app.services.safety_engine import SafetyEngine, overall_score
@@ -89,6 +90,7 @@ async def get_config() -> ConfigResponse:
         "groq": settings.groq_chat_model if settings.has_groq else "unavailable",
         "sarvam_stt": settings.sarvam_stt_model if settings.has_sarvam else "unavailable",
         "sarvam_tts": settings.sarvam_tts_model if settings.has_sarvam else "unavailable",
+        "elevenlabs_tts": settings.elevenlabs_voice_id if settings.has_elevenlabs else "unavailable",
         "languages": str(len(SUPPORTED_LANGUAGES)),
     }
     keys = [k for k, v in {
@@ -99,6 +101,7 @@ async def get_config() -> ConfigResponse:
         "WEATHER_API_KEY": settings.weather_api_key,
         "GROQ_API_KEY": settings.groq_api_key,
         "SARVAM_API_KEY": settings.sarvam_api_key,
+        "ELEVENLABS_API_KEY": settings.elevenlabs_api_key,
     }.items() if v]
     return ConfigResponse(
         safety_weights=settings.safety_weights.as_dict(),
@@ -444,11 +447,21 @@ async def fatigue_transcribe(
         return TranscribeResponse(error="empty audio")
     result = await sarvam_service.transcribe(audio, language_hint=language_hint)
     if not result:
-        return TranscribeResponse(error="Sarvam STT unavailable — falling back to browser speech recognition")
+        return TranscribeResponse(
+            transcript=None,
+            language_code=language_hint if language_hint and language_hint != "auto" else "auto",
+            source="browser",
+            provider="browser",
+            fallback=True,
+            fallback_reason="SARVAM_API_ERROR",
+            error="Sarvam STT unavailable — falling back to browser speech recognition",
+        )
     return TranscribeResponse(
         transcript=result.get("transcript"),
-        language_code=result.get("language_code"),
+        language_code=result.get("language_code") or (language_hint if language_hint and language_hint != "auto" else "auto"),
         source="sarvam",
+        provider="sarvam",
+        fallback=False,
     )
 
 
@@ -458,15 +471,49 @@ async def fatigue_tts(req: TTSRequest) -> TTSResponse:
     returning source="browser" (no audio) — the frontend decides."""
     if not req.text or not req.text.strip():
         return TTSResponse(message="empty text")
-    result = await sarvam_service.synthesize(req.text, req.language or "en-IN")
+    result = None
+    if settings.tts_provider == "elevenlabs":
+        result = await elevenlabs_service.synthesize(req.text, req.language or "en-IN")
+    else:
+        result = await sarvam_service.synthesize(req.text, req.language or "en-IN")
+
     if not result:
-        return TTSResponse(source="browser", message="Sarvam TTS unavailable — using browser speech")
+        fallback_provider = settings.tts_provider if settings.tts_provider else "browser"
+        return TTSResponse(
+            source="browser",
+            provider="browser",
+            fallback=True,
+            fallback_reason=f"{fallback_provider.upper()}_API_ERROR",
+            message="Speech synthesis unavailable — using browser speech",
+        )
     return TTSResponse(
         audio_base64=result.get("audio_base64"),
-        format=result.get("format", "wav"),
-        source="sarvam",
+        format=result.get("format", "mp3" if result.get("format") == "mp3" else "wav"),
+        source=result.get("source", settings.tts_provider),
+        provider=result.get("provider", settings.tts_provider),
         cached=bool(result.get("cached")),
+        fallback=False,
     )
+
+
+@app.get("/api/elevenlabs/token")
+async def get_elevenlabs_token():
+    """Fetch a signed URL for the ElevenLabs Conversational AI Web SDK."""
+    if not settings.elevenlabs_api_key or not settings.elevenlabs_agent_id:
+        raise HTTPException(status_code=400, detail="ElevenLabs credentials or Agent ID not configured")
+    
+    import httpx
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(
+                f"https://api.elevenlabs.io/v1/convai/conversation/get_signed_url?agent_id={settings.elevenlabs_agent_id}",
+                headers={"xi-api-key": settings.elevenlabs_api_key},
+                timeout=settings.elevenlabs_timeout,
+            )
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
 
 # --------------------------------------------------------------------------
 # Emergency

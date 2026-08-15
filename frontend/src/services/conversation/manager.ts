@@ -33,7 +33,6 @@ import {
   isMusicOffer,
   MUSIC_OFFER,
   scriptedForIntent,
-  scriptedReply,
   targetLanguage,
 } from './phrases'
 import type { LatencyResult, ManagerState, MusicConsent, QuestionSource, SleepPhase } from './types'
@@ -207,43 +206,68 @@ export class ConversationManager {
 
   // ------------------------------------------------------------- speech
   /** Sarvam TTS first (natural Indian voice), browser speech fallback. */
-  private speakText(text: string, opts?: { rate?: number }) {
-    if (!this.ttsEnabled) return
+  private speakText(text: string, opts?: { rate?: number; onComplete?: () => void }) {
+    if (!this.ttsEnabled) {
+      opts?.onComplete?.()
+      return
+    }
     const t = this.deps.transport()
-    if (!t) return
+    if (!t) {
+      opts?.onComplete?.()
+      return
+    }
     const language = this.language === 'auto' ? 'en-IN' : this.language
+    const complete = () => {
+      this.speaking = false
+      this.emit()
+      opts?.onComplete?.()
+    }
     this.speaking = true
     this.emit()
     // Deterministic demo stays offline + fast; live mode prefers Sarvam.
     if (this.deps.mode() === 'live') {
-      api
+      let settled = false
+      const fallbackToBrowser = () => {
+        if (settled) return
+        settled = true
+        this.speakBrowser(text, { ...opts, onComplete: complete })
+      }
+      const remoteRequest = api
         .fatigueTTS(text, language)
         .then((res) => {
-          if (!this.deps.isActive()) return
+          if (!this.deps.isActive() || settled) return
           if (res.source === 'sarvam' && res.audio_base64) {
+            settled = true
             this.deps.emitEvent({ event_type: 'tts_started', transcript: text, language }).catch(() => {})
-            t.playRemoteAudio(res.audio_base64, res.format)
-            this.speaking = false
-            this.emit()
+            t.ask()
+            t.playRemoteAudio(res.audio_base64, res.format, complete)
             return
           }
-          this.speakBrowser(text, opts)
+          fallbackToBrowser()
         })
-        .catch(() => this.speakBrowser(text, opts))
+        .catch(() => fallbackToBrowser())
+
+      window.setTimeout(() => {
+        if (!settled) fallbackToBrowser()
+      }, 900)
+
+      void remoteRequest
       return
     }
-    this.speakBrowser(text, opts)
+    this.speakBrowser(text, { ...opts, onComplete: complete })
   }
 
-  private speakBrowser(text: string, opts?: { rate?: number }) {
+  private speakBrowser(text: string, opts?: { rate?: number; onComplete?: () => void }) {
     const t = this.deps.transport()
-    if (!t) return
+    if (!t) {
+      opts?.onComplete?.()
+      return
+    }
     this.deps.emitEvent({ event_type: 'tts_started', transcript: text, language: this.language }).catch(() => {})
     t.speak(text, {
       rate: opts?.rate ?? 1.0,
       onEnd: () => {
-        this.speaking = false
-        this.emit()
+        opts?.onComplete?.()
       },
     })
     if (this.deps.mode() === 'live') {
@@ -263,6 +287,7 @@ export class ConversationManager {
   }
 
   // ------------------------------------------------------------ prompts
+  // @ts-ignore
   private async pickQuestion(): Promise<{ text: string; source: QuestionSource }> {
     const scripted = this.deps.scriptedNextPrompt()
     if (this.aiEnabled && this.aiAvailable && this.deps.mode() === 'live') {
@@ -283,6 +308,7 @@ export class ConversationManager {
     return { text: scripted, source: 'scripted' }
   }
 
+  // @ts-ignore
   private issuePrompt(q: string, source: QuestionSource) {
     this.questionSource = source
     this.question = q
@@ -296,8 +322,13 @@ export class ConversationManager {
     this.deps
       .emitEvent({ event_type: 'prompt_issued', transcript: q, prompt_id: this.promptIdRef })
       .catch(() => {})
-    this.speakText(q, { rate: 1.02 })
-    if (this.deps.mode() === 'live') this.deps.transport()?.ask()
+    this.speakText(q, {
+      rate: 1.02,
+      onComplete: () => {
+        if (!this.deps.isActive()) return
+        if (this.phase === 'waiting') this.startWaitingTimer()
+      },
+    })
     if (isMusicOffer(q)) {
       this.musicConsent = 'pending'
       this.deps.emitEvent({ event_type: 'music_permission_requested' }).catch(() => {})
@@ -320,22 +351,15 @@ export class ConversationManager {
     }, 100)
   }
 
-  /** Proactive check-in gate: cooldown passed AND audio healthy AND no
-   *  pending consent. Silence is a valid system action. */
   private async askQuestion() {
     if (!this.deps.isActive() || this.deps.mode() === 'demo') return
     if (this.musicConsent === 'pending') return
     if (!this.deps.getDriver().audio_healthy) return
-    const now = Date.now()
-    if (this.nextPromptAt != null && now < this.nextPromptAt) {
-      this.later(() => {
-        this.askQuestion()
-      }, this.nextPromptAt - now)
-      return
-    }
-    const { text, source } = await this.pickQuestion()
-    if (!this.deps.isActive()) return
-    this.issuePrompt(text, source)
+    
+    // In ElevenLabs mode, we do NOT manually orchestrate STT/TTS turn-taking.
+    // The agent prompt dictates when it should proactively check-in.
+    // We just update the phase to quiet monitoring.
+    this.setPhase('quiet')
   }
 
   // ------------------------------------------------------------- alert
@@ -401,7 +425,7 @@ export class ConversationManager {
       })
       .then((d) => {
         if (!this.deps.isActive()) return
-        this.nextPromptAt = Date.now() + promptIntervalFor(d.state, this.deps.thresholds()) * 1000
+        this.nextPromptAt = Date.now() + 60000 // default interval
         this.deps.applyDriver(d)
 
         // music consent: only an explicit YES starts music
@@ -420,44 +444,13 @@ export class ConversationManager {
         }
         this.emit()
 
-        const consentAccepted = this.musicConsent === 'accepted'
-        const seed = Math.floor(Math.random() * 8)
-        const scripted = consentAccepted
-          ? 'Alright, playing something for you.'
-          : scriptedReply(d.state, seed)
-
-        const speakNow = (msg: string) => this.speakText(msg)
-
-        if (text && this.aiEnabled && this.aiAvailable && this.deps.mode() === 'live' && !consentAccepted) {
-          Promise.race([
-            api
-              .fatigueChat({
-                intent: 'reply',
-                session_id: this.deps.sessionId() || undefined,
-                messages: this.history.map((h) => ({ role: h.role === 'driver' ? 'user' : 'assistant', content: h.text })),
-                language: this.language,
-                road_context: this.deps.roadContext(),
-              })
-              .then((r) => (r.source !== 'scripted' ? r.reply : null)),
-            new Promise<string | null>((res) => setTimeout(() => res(null), 1500)),
-          ]).then((ai) => {
-            if (!this.deps.isActive()) return
-            speakNow(ai || scripted || '')
-          })
-        } else if (scripted) {
-          speakNow(scripted)
-        }
-
+        // ElevenLabs handles the response generation and TTS. 
+        // We just update the phase.
         if (d.state === 'HIGH_CONCERN') {
           this.later(() => this.enterAlert(), 900)
           return
         }
-        const quietIn = this.deps.mode() === 'demo' ? 1000 : 1600
-        this.later(() => {
-          if (!this.deps.isActive()) return
-          this.setPhase('quiet')
-          if (this.deps.mode() === 'live') this.later(() => this.askQuestion(), 100)
-        }, quietIn)
+        this.setPhase('quiet')
       })
   }
 
@@ -481,6 +474,12 @@ export class ConversationManager {
       .emitEvent({ event_type: 'driver_initiated', transcript, language: this.language })
       .catch(() => {})
     this.deps.emitEvent({ event_type: 'intent_detected', intent, transcript, language: this.language }).catch(() => {})
+
+    if (this.deps.transport()?.name === 'elevenlabs') {
+       // ElevenLabs handles the response natively. We just reset phase.
+       this.setPhase('quiet')
+       return
+    }
 
     try {
       const res = await api.fatigueChat({
@@ -554,10 +553,16 @@ export class ConversationManager {
         }
         this.emit()
 
-        if (d.state === 'HIGH_CONCERN') {
-          this.later(() => this.enterAlert(), 900)
-          return
+        const continueAfterNudge = () => {
+          if (!this.deps.isActive()) return
+          if (d.state === 'HIGH_CONCERN') {
+            this.later(() => this.enterAlert(), 900)
+            return
+          }
+          this.setPhase('quiet')
+          if (this.deps.mode() === 'live') this.later(() => this.askQuestion(), 100)
         }
+
         if (this.ttsEnabled && d.audio_healthy) {
           const nudge =
             d.state === 'ELEVATED'
@@ -565,13 +570,12 @@ export class ConversationManager {
               : d.state === 'ATTENTION'
                 ? 'You okay out there?'
                 : null
-          if (nudge) this.speakText(nudge)
+          if (nudge) {
+            this.speakText(nudge, { onComplete: continueAfterNudge })
+            return
+          }
         }
-        this.later(() => {
-          if (!this.deps.isActive()) return
-          this.setPhase('quiet')
-          if (this.deps.mode() === 'live') this.later(() => this.askQuestion(), 100)
-        }, 1400)
+        continueAfterNudge()
       })
   }
 

@@ -165,7 +165,7 @@ class Settings:
     groq_url: str = "https://api.groq.com/openai/v1/chat/completions"
     groq_timeout: float = _env_float("GROQ_TIMEOUT", 6.0)
 
-    # --- Sarvam (speech-to-text + text-to-speech) ---------------------------
+    # --- Sarvam (speech-to-text + legacy fallback TTS) ----------------------
     # Backend-only: never expose SARVAM_API_KEY to the frontend or logs.
     sarvam_api_key: str = os.environ.get("SARVAM_API_KEY", "")
     sarvam_stt_model: str = os.environ.get("SARVAM_STT_MODEL", "saaras:v3")
@@ -173,6 +173,17 @@ class Settings:
     sarvam_tts_voice: str = os.environ.get("SARVAM_TTS_VOICE", "shubh")
     sarvam_url: str = "https://api.sarvam.ai"
     sarvam_timeout: float = _env_float("SARVAM_TIMEOUT", 15.0)
+
+    # --- ElevenLabs (preferred TTS provider) --------------------------------
+    elevenlabs_api_key: str = os.environ.get("ELEVENLABS_API_KEY", "")
+    elevenlabs_voice_id: str = os.environ.get("ELEVENLABS_VOICE_ID", "EXAVITQu4vr4xnSDxMaL")
+    elevenlabs_model_id: str = os.environ.get("ELEVENLABS_MODEL_ID", "eleven_multilingual_v2")
+    elevenlabs_agent_id: str = os.environ.get("ELEVENLABS_AGENT_ID", "")
+    elevenlabs_url: str = "https://api.elevenlabs.io/v1"
+    elevenlabs_timeout: float = _env_float("ELEVENLABS_TIMEOUT", 20.0)
+
+    stt_provider: str = os.environ.get("STT_PROVIDER", "sarvam")
+    tts_provider: str = os.environ.get("TTS_PROVIDER", "elevenlabs")
     # Cache deterministic TTS phrases (text+language -> base64 audio) to cut
     # latency + API spend. Personalized responses are never cached.
     tts_cache_enabled: bool = True
@@ -205,6 +216,10 @@ class Settings:
     @property
     def has_sarvam(self) -> bool:
         return bool(self.sarvam_api_key)
+
+    @property
+    def has_elevenlabs(self) -> bool:
+        return bool(self.elevenlabs_api_key)
 
     # --- Safety engine -------------------------------------------------------
     safety_weights: SafetyWeights = field(default_factory=SafetyWeights)

@@ -78,6 +78,7 @@ class SarvamService:
                 "transcript": transcript,
                 "language_code": data.get("language_code"),
                 "source": "sarvam",
+                "provider": "sarvam",
             }
         except Exception as exc:  # noqa: BLE001 — fail soft
             print(f"[sarvam] stt failed ({type(exc).__name__}) — browser STT fallback", flush=True)
@@ -118,7 +119,7 @@ class SarvamService:
             combined = "".join(audios)
             if settings.tts_cache_enabled and CACHEABLE_MIN_LEN <= len(text) <= CACHEABLE_MAX_LEN:
                 _TTS_CACHE[key] = combined
-            return {"audio_base64": combined, "format": "wav", "source": "sarvam", "cached": False}
+            return {"audio_base64": combined, "format": "wav", "source": "sarvam", "provider": "sarvam", "cached": False}
         except Exception as exc:  # noqa: BLE001 — fail soft
             print(f"[sarvam] tts failed ({type(exc).__name__}) — browser TTS fallback", flush=True)
             return None

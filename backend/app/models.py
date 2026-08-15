@@ -383,8 +383,11 @@ class TTSRequest(BaseModel):
 class TTSResponse(BaseModel):
     audio_base64: Optional[str] = None
     format: str = "wav"
-    source: Literal["sarvam", "browser", "none"] = "none"
+    source: Literal["sarvam", "elevenlabs", "browser", "none"] = "none"
+    provider: str = "sarvam"
     cached: bool = False
+    fallback: bool = False
+    fallback_reason: Optional[str] = None
     message: str = ""
 
 
@@ -396,7 +399,10 @@ class TranscribeRequest(BaseModel):
 class TranscribeResponse(BaseModel):
     transcript: Optional[str] = None
     language_code: Optional[str] = None
-    source: Literal["sarvam", "error"] = "error"
+    source: Literal["sarvam", "browser", "error"] = "error"
+    provider: str = "browser"
+    fallback: bool = True
+    fallback_reason: Optional[str] = None
     error: str = ""
 
 

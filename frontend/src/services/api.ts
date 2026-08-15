@@ -125,7 +125,12 @@ export const api = {
         const body = await res.text().catch(() => '')
         throw new Error(`API ${res.status}: ${body.slice(0, 200)}`)
       }
-      return res.json() as Promise<TranscribeResponse>
+      const data = (await res.json()) as TranscribeResponse
+      return {
+        ...data,
+        provider: data.provider ?? 'sarvam',
+        fallback: Boolean(data.fallback),
+      }
     })
   },
 
@@ -134,7 +139,15 @@ export const api = {
     return request<TTSResponse>('/fatigue/tts', {
       method: 'POST',
       body: JSON.stringify({ text, language }),
-    })
+    }).then((data) => ({
+      ...data,
+      provider: data.provider ?? 'sarvam',
+      fallback: Boolean(data.fallback),
+    }))
+  },
+
+  getElevenLabsToken(): Promise<{ signed_url: string }> {
+    return request('/elevenlabs/token')
   },
 
   getConfig(): Promise<{

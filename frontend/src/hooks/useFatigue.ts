@@ -269,7 +269,10 @@ export function useFatigue(onGoEmergency?: () => void) {
     [manager],
   )
   const setMusicVolume = useCallback((v: number) => manager.setMusicVolume(v), [manager])
-  const setLanguage = useCallback((code: string) => manager.setLanguage(code), [manager])
+  const setLanguage = useCallback((code: string) => {
+    manager.setLanguage(code)
+    transportRef.current?.setLanguage(code)
+  }, [manager])
   const setRoadContext = useCallback((ctx: RoadContext | null) => {
     roadContextRef.current = ctx
   }, [])

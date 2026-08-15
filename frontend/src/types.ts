@@ -271,14 +271,20 @@ export interface TTSResponse {
   audio_base64: string | null
   format: string
   source: 'sarvam' | 'browser' | 'none'
+  provider: string
   cached: boolean
+  fallback: boolean
+  fallback_reason?: string | null
   message: string
 }
 
 export interface TranscribeResponse {
   transcript: string | null
   language_code: string | null
-  source: 'sarvam' | 'error'
+  source: 'sarvam' | 'browser' | 'error'
+  provider: string
+  fallback: boolean
+  fallback_reason?: string | null
   error: string
 }
 

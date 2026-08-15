@@ -17,8 +17,6 @@ import {
   hasSpeechRecognition,
   initVoices,
   playAlertSound,
-  speak as ttsSpeak,
-  stopSpeaking as ttsStop,
 } from '../speech'
 
 export interface AudioStatus {
@@ -52,11 +50,12 @@ export interface AudioTransport {
   stop(): void
   /** begin listening for a spoken response */
   ask(): void
+  setLanguage(language: string): void
   stopListening(): void
   speak(text: string, opts?: { rate?: number; onEnd?: () => void }): void
   /** Play pre-synthesized audio (Sarvam TTS base64) instead of browser TTS.
    *  stopSpeaking() also stops any remote audio (barge-in). */
-  playRemoteAudio(base64: string, format: string): void
+  playRemoteAudio(base64: string, format: string, onEnd?: () => void): void
   stopSpeaking(): void
   /** Music is an optional INTERVENTION. It plays ONLY after explicit driver
    *  consent — never on session start, fatigue, silence, or demo start. */
@@ -86,8 +85,113 @@ export function classifyRecognitionError(code: string): 'microphone_error' | 'as
 // Browser transport
 // ---------------------------------------------------------------------------
 
+export class AudioPlaybackManager {
+  private queue: Array<{ kind: 'browser' | 'remote'; text?: string; base64?: string; format?: string; rate?: number; onEnd?: () => void }> = []
+  private active: { kind: 'browser' | 'remote'; handle: SpeechSynthesisUtterance | HTMLAudioElement | null; onEnd?: () => void } | null = null
+  private audioContext: AudioContext | null = null
+  private started = false
+
+  ensureAudioContext() {
+    if (typeof window === 'undefined') return null
+    const Ctor = window.AudioContext || (window as any).webkitAudioContext
+    if (!Ctor) return null
+    if (!this.audioContext) this.audioContext = new Ctor()
+    if (this.audioContext.state === 'suspended') void this.audioContext.resume()
+    return this.audioContext
+  }
+
+  start() {
+    this.started = true
+    this.ensureAudioContext()
+    initVoices()
+  }
+
+  stop() {
+    this.started = false
+    this.queue = []
+    if (this.active?.kind === 'remote' && this.active.handle instanceof HTMLAudioElement) {
+      this.active.handle.pause()
+    }
+    this.active = null
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel()
+    if (this.audioContext && this.audioContext.state !== 'closed') {
+      void this.audioContext.close().catch(() => {})
+      this.audioContext = null
+    }
+  }
+
+  private finishCurrent() {
+    const current = this.active
+    this.active = null
+    current?.onEnd?.()
+    const next = this.queue.shift()
+    if (!next) return
+    this.play(next)
+  }
+
+  private play(item: { kind: 'browser' | 'remote'; text?: string; base64?: string; format?: string; rate?: number; onEnd?: () => void }) {
+    if (!this.started) {
+      item.onEnd?.()
+      return
+    }
+    this.ensureAudioContext()
+    if (item.kind === 'browser') {
+      if (!('speechSynthesis' in window)) {
+        item.onEnd?.()
+        return
+      }
+      const text = (item.text ?? '').trim()
+      if (!text) {
+        item.onEnd?.()
+        return
+      }
+      const utter = new SpeechSynthesisUtterance(text)
+      utter.rate = item.rate ?? 1.0
+      utter.onend = () => {
+        this.finishCurrent()
+      }
+      utter.onerror = () => {
+        this.finishCurrent()
+      }
+      this.active = { kind: 'browser', handle: utter, onEnd: item.onEnd }
+      window.speechSynthesis.cancel()
+      window.speechSynthesis.speak(utter)
+      return
+    }
+    const mime = item.format === 'mp3' ? 'audio/mpeg' : 'audio/wav'
+    const audio = new Audio(`data:${mime};base64,${item.base64 ?? ''}`)
+    audio.onended = () => {
+      this.finishCurrent()
+    }
+    audio.onerror = () => {
+      this.finishCurrent()
+    }
+    audio.play().catch(() => {
+      this.finishCurrent()
+    })
+    this.active = { kind: 'remote', handle: audio, onEnd: item.onEnd }
+  }
+
+  enqueue(item: { kind: 'browser' | 'remote'; text?: string; base64?: string; format?: string; rate?: number; onEnd?: () => void }) {
+    this.queue.push(item)
+    if (!this.active) this.play(this.queue.shift()!)
+  }
+
+  interrupt() {
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel()
+    const current = this.active
+    this.active = null
+    if (current?.kind === 'remote' && current.handle instanceof HTMLAudioElement) {
+      current.handle.pause()
+    }
+    this.queue = []
+    current?.onEnd?.()
+  }
+}
+
 export function createBrowserAudioTransport(): AudioTransport {
   const music = new DemoMusic()
+  const playback = new AudioPlaybackManager()
   let status: AudioStatus = {
     supported: hasSpeechRecognition(),
     listening: false,
@@ -99,6 +203,7 @@ export function createBrowserAudioTransport(): AudioTransport {
   const speechCbs = new Set<(e: SpeechEvent) => void>()
   let rec: ReturnType<typeof createRecognition> | null = null
   let started = false
+  let currentLang = 'en-US'
 
   const setStatus = (patch: Partial<AudioStatus>) => {
     status = { ...status, ...patch }
@@ -108,28 +213,51 @@ export function createBrowserAudioTransport(): AudioTransport {
   const emit = (e: SpeechEvent) => speechCbs.forEach((cb) => cb(e))
 
   const ensureRecognition = () => {
-    if (rec) return
-    rec = createRecognition({
-      onStart: () => setStatus({ listening: true }),
-      onEnd: () => setStatus({ listening: false }),
-      onSpeechStart: () => emit({ kind: 'speechstart' }),
-      onResult: (finalText, interimText, confidence) =>
-        emit({ kind: 'result', finalText, interimText, confidence }),
-      onError: (code) => {
-        const kind = classifyRecognitionError(code)
-        if (kind === 'microphone_error') {
-          setStatus({ listening: false, micBlocked: true, lastError: code })
-        } else if (kind === 'asr_error') {
-          setStatus({ listening: false, lastError: code })
-        } else {
-          setStatus({ listening: false })
-        }
-        emit({ kind: 'error', error: code })
-      },
-    })
+    if (!rec) {
+      rec = createRecognition({
+        language: currentLang,
+        onStart: () => setStatus({ listening: true }),
+        onEnd: () => setStatus({ listening: false }),
+        onSpeechStart: () => emit({ kind: 'speechstart' }),
+        onResult: (finalText, interimText, confidence) =>
+          emit({ kind: 'result', finalText, interimText, confidence }),
+        onError: (code) => {
+          const kind = classifyRecognitionError(code)
+          if (kind === 'microphone_error') {
+            setStatus({ listening: false, micBlocked: true, lastError: code })
+          } else if (kind === 'asr_error') {
+            setStatus({ listening: false, lastError: code })
+          } else {
+            setStatus({ listening: false })
+          }
+          emit({ kind: 'error', error: code })
+        },
+      })
+      return
+    }
+    if (rec.isSupported && rec && currentLang && (rec as any).lang !== currentLang) {
+      rec.stop()
+      rec = createRecognition({
+        language: currentLang,
+        onStart: () => setStatus({ listening: true }),
+        onEnd: () => setStatus({ listening: false }),
+        onSpeechStart: () => emit({ kind: 'speechstart' }),
+        onResult: (finalText, interimText, confidence) =>
+          emit({ kind: 'result', finalText, interimText, confidence }),
+        onError: (code) => {
+          const kind = classifyRecognitionError(code)
+          if (kind === 'microphone_error') {
+            setStatus({ listening: false, micBlocked: true, lastError: code })
+          } else if (kind === 'asr_error') {
+            setStatus({ listening: false, lastError: code })
+          } else {
+            setStatus({ listening: false })
+          }
+          emit({ kind: 'error', error: code })
+        },
+      })
+    }
   }
-
-  let remoteAudio: HTMLAudioElement | null = null
 
   return {
     name: 'browser',
@@ -137,29 +265,38 @@ export function createBrowserAudioTransport(): AudioTransport {
       return hasSpeechRecognition()
     },
     start() {
-    if (started) return
-    started = true
-    initVoices()
-    ensureRecognition()
-    setStatus({ supported: true, micBlocked: false, lastError: null })
-    // NOTE: deliberately NO music here — music requires explicit consent.
-  },
+      if (started) return
+      started = true
+      playback.start()
+      initVoices()
+      ensureRecognition()
+      setStatus({ supported: true, micBlocked: false, lastError: null })
+    },
     stop() {
       started = false
       rec?.stop()
-      ttsStop()
-      remoteAudio?.pause()
-      remoteAudio = null
+      playback.stop()
       music.stop()
       setStatus({ listening: false, speaking: false })
     },
     playMusic: () => music.start(),
     stopMusic: () => music.stop(),
     ask() {
-      ensureRecognition()
+      if (!started) return
+      if (!rec) ensureRecognition()
       if (!rec?.isSupported) return
       setStatus({ listening: true })
-      rec.start()
+      try {
+        rec.start()
+      } catch {
+        /* recognition already running */
+      }
+    },
+    setLanguage(language) {
+      currentLang = language || 'en-US'
+      if (rec) {
+        ensureRecognition()
+      }
     },
     stopListening() {
       rec?.stop()
@@ -167,36 +304,24 @@ export function createBrowserAudioTransport(): AudioTransport {
     },
     speak(text, opts) {
       if (!started) return
+      playback.enqueue({ kind: 'browser', text, rate: opts?.rate, onEnd: () => { setStatus({ speaking: false }); opts?.onEnd?.() } })
       setStatus({ speaking: true })
-      const done = () => {
-        setStatus({ speaking: false })
-        opts?.onEnd?.()
-      }
-      ttsSpeak(text, { rate: opts?.rate, onEnd: done })
     },
-    playRemoteAudio(base64, format) {
+    playRemoteAudio(base64, format, onEnd) {
       if (!started) return
-      remoteAudio?.pause()
-      const mime = format === 'mp3' ? 'audio/mpeg' : 'audio/wav'
-      remoteAudio = new Audio(`data:${mime};base64,${base64}`)
-      setStatus({ speaking: true })
-      remoteAudio.onended = () => {
-        setStatus({ speaking: false })
-        remoteAudio = null
-      }
-      remoteAudio.onerror = () => {
-        setStatus({ speaking: false })
-        remoteAudio = null
-      }
-      remoteAudio.play().catch(() => {
-        setStatus({ speaking: false })
-        remoteAudio = null
+      playback.enqueue({
+        kind: 'remote',
+        base64,
+        format,
+        onEnd: () => {
+          setStatus({ speaking: false })
+          onEnd?.()
+        },
       })
+      setStatus({ speaking: true })
     },
     stopSpeaking() {
-      ttsStop()
-      remoteAudio?.pause()
-      remoteAudio = null
+      playback.interrupt()
       setStatus({ speaking: false })
     },
     setMusicVolume: (v) => music.setVolume(v),
@@ -231,6 +356,7 @@ export class CarBluetoothTransport implements AudioTransport {
   }
   stop() {}
   ask() {}
+  setLanguage() {}
   stopListening() {}
   speak() {}
   playRemoteAudio() {}
@@ -249,7 +375,10 @@ export class CarBluetoothTransport implements AudioTransport {
   }
 }
 
+import { createElevenLabsTransport } from './elevenLabsTransport'
+
 /** Composition root: swap to the car transport here in the native build. */
 export function createAudioTransport(kind: 'browser' | 'car'): AudioTransport {
-  return kind === 'car' ? new CarBluetoothTransport() : createBrowserAudioTransport()
+  // Use ElevenLabs transport as the primary voice layer for the browser
+  return kind === 'car' ? new CarBluetoothTransport() : createElevenLabsTransport()
 }
