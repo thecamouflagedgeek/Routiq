@@ -1,5 +1,4 @@
 import {
-  MapPin,
   Moon,
   Navigation,
   Plus,
@@ -32,6 +31,8 @@ export function Navbar({
   onToggleDark: () => void;
   hideBrandPill?: boolean;
 }) {
+  const logoSrc = dark ? "/routiqinverted.png" : "/routiqlogo.png";
+
   return (
     <>
       {/* ── Top Floating Brand Badge (Centered Desktop) — hidden on the
@@ -48,21 +49,12 @@ export function Navbar({
               : "1px solid rgba(0, 0, 0, 0.08)",
           }}
         >
-          <span
-            className="flex h-7 w-7 items-center justify-center rounded-full shadow-inner"
-            style={{ background: "var(--text)" }}
-          >
-            <MapPin size={15} style={{ color: "var(--orange)" }} />
-          </span>
-          <span
-            className="text-lg font-black tracking-tight"
-            style={{ color: "var(--text)" }}
-          >
-            Routiq<span style={{ color: "var(--orange)" }}>.</span>
-            <span className="ml-1.5 text-[10px] font-extrabold uppercase tracking-widest opacity-60">
-              SAFEAI
-            </span>
-          </span>
+          <img
+            src={logoSrc}
+            alt="Routiq"
+            className="h-9 w-[132px] object-cover"
+            style={{ objectPosition: "center 51%" }}
+          />
         </div>
       )}
 
@@ -197,21 +189,12 @@ export function Navbar({
             className="flex cursor-pointer items-center gap-2"
             onClick={() => onNavigate("dashboard")}
           >
-            <span
-              className="flex h-7 w-7 items-center justify-center rounded-full"
-              style={{ background: "var(--text)" }}
-            >
-              <MapPin size={14} style={{ color: "var(--orange)" }} />
-            </span>
-            <span
-              className="text-base font-black tracking-tight"
-              style={{ color: "var(--text)" }}
-            >
-              Routiq<span style={{ color: "var(--orange)" }}>.</span>
-              <span className="ml-1 text-[8px] font-bold uppercase tracking-widest opacity-60">
-                SAFEAI
-              </span>
-            </span>
+            <img
+              src={logoSrc}
+              alt="Routiq"
+              className="h-9 w-[122px] object-cover"
+              style={{ objectPosition: "center 51%" }}
+            />
           </button>
 
           <div className="flex items-center gap-1.5">

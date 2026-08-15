@@ -690,18 +690,12 @@ export function Dashboard({
               border: `1px solid ${C.borderStrong}`,
             }}
           >
-            <span
-              className="flex h-7 w-7 items-center justify-center rounded-full"
-              style={{ background: "#ffffff" }}
-            >
-              <MapPin size={15} style={{ color: C.orange }} />
-            </span>
-            <span className="text-lg font-black tracking-tight text-white">
-              Routiq<span style={{ color: C.orange }}>.</span>
-              <span className="ml-1.5 text-[10px] font-extrabold uppercase tracking-widest opacity-60">
-                SAFEAI
-              </span>
-            </span>
+            <img
+              src={dark ? "/routiqinverted.png" : "/routiqlogo.png"}
+              alt="Routiq"
+              className="h-9 w-[132px] object-cover"
+              style={{ objectPosition: "center 51%" }}
+            />
           </div>
 
           <aside

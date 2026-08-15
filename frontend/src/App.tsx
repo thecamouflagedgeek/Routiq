@@ -40,6 +40,9 @@ export default function App() {
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", dark);
+    document
+      .querySelector<HTMLLinkElement>("#favicon")
+      ?.setAttribute("href", dark ? "/routiqinverted.png" : "/routiqlogo.png");
     try {
       localStorage.setItem("routiq.dark", String(dark));
     } catch {
