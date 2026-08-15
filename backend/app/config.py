@@ -102,6 +102,16 @@ class Settings:
     osrm_url: str = os.environ.get("OSRM_URL", "https://router.project-osrm.org")
     osrm_timeout: float = _env_float("OSRM_TIMEOUT", 3.0)
 
+    # Overpass (OpenStreetMap) hospital discovery — mirrors tried in order.
+    # The public API rate-limits/queues, so we rotate through several mirrors
+    # before giving up (and then surface a clear error, never fake data).
+    overpass_urls: list[str] = field(default_factory=lambda: [
+        os.environ.get("OVERPASS_URL", "https://overpass-api.de/api/interpreter"),
+        os.environ.get("OVERPASS_FALLBACK_URL", "https://overpass.kumi.systems/api/interpreter"),
+        os.environ.get("OVERPASS_MIRROR_URL", "https://overpass.private.coffee/api/interpreter"),
+    ])
+    overpass_timeout: float = _env_float("OVERPASS_TIMEOUT", 30.0)
+
     # TomTom (routing + traffic share one key)
     tomtom_url: str = "https://api.tomtom.com"
     tomtom_timeout: float = _env_float("TOMTOM_TIMEOUT", 4.0)
@@ -142,6 +152,9 @@ class Settings:
     # --- Emergency -----------------------------------------------------------
     emergency_countdown_seconds: int = _env_int("EMERGENCY_COUNTDOWN_SECONDS", 60)
     hospital_limit: int = _env_int("HOSPITAL_LIMIT", 6)
+    hospital_search_radius_km: float = _env_float("HOSPITAL_SEARCH_RADIUS_KM", 15.0)
+    # Number of nearest OSM hospitals we compute real OSRM ETAs for before ranking
+    hospital_eta_candidates: int = _env_int("HOSPITAL_ETA_CANDIDATES", 12)
 
     # --- Storage -------------------------------------------------------------
     data_dir: str = os.environ.get("ROADSAFE_DATA_DIR", os.path.join(os.path.dirname(__file__), "data"))

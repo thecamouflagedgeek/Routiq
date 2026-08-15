@@ -1,9 +1,9 @@
 import L from 'leaflet'
 import { useEffect, useMemo } from 'react'
 import { MapContainer, Marker, Polyline, TileLayer, useMap, useMapEvents } from 'react-leaflet'
-import { Crosshair, Maximize2, Minimize2 } from 'lucide-react'
+import { Crosshair, Maximize2, Minimize2, Siren } from 'lucide-react'
 import { DEFAULT_MAP_CENTER, DEFAULT_ZOOM } from '../../config'
-import type { Hazard, Hospital, RouteResponse, Segment } from '../../types'
+import type { EmergencyRoute, Hazard, Hospital, RouteResponse, Segment } from '../../types'
 import {
   endIcon,
   HazardMarker,
@@ -29,6 +29,9 @@ interface MapViewProps {
   isFullscreen?: boolean
   startLabel?: string
   endLabel?: string
+  /** Dynamic emergency navigation route (OSRM geometry + steps). */
+  emergencyRoute?: EmergencyRoute | null
+  emergencyDestinationName?: string
 }
 
 function RouteLayer({
@@ -93,6 +96,35 @@ function MapEvents({
   return null
 }
 
+function EmergencyRouteLayer({
+  route,
+  destinationName,
+}: {
+  route: EmergencyRoute
+  destinationName?: string
+}) {
+  return (
+    <>
+      <Polyline
+        positions={route.geometry}
+        pathOptions={{ color: '#ffffff', weight: 10, opacity: 0.95 }}
+      />
+      <Polyline
+        positions={route.geometry}
+        pathOptions={{
+          color: '#dc2626',
+          weight: 6,
+          opacity: 0.95,
+          lineCap: 'round',
+          lineJoin: 'round',
+        }}
+      />
+      <Marker position={route.start} icon={startIcon('Current location')} />
+      <Marker position={route.end} icon={endIcon(destinationName ?? 'Hospital')} />
+    </>
+  )
+}
+
 function MapControls({
   onFullscreen,
   isFullscreen,
@@ -138,14 +170,18 @@ export function MapView({
   isFullscreen = false,
   startLabel,
   endLabel,
+  emergencyRoute,
+  emergencyDestinationName,
 }: MapViewProps) {
   const bounds = useMemo(() => {
-    if (!route || route.geometry.length < 2) return null
-    const pts = route.geometry.map((p) => [p[0], p[1]] as [number, number])
+    const geo = emergencyRoute?.geometry ?? route?.geometry ?? null
+    if (!geo || geo.length < 2) return null
+    const pts = geo.map((p) => [p[0], p[1]] as [number, number])
     return L.latLngBounds(pts)
-  }, [route])
+  }, [route, emergencyRoute])
 
   return (
+    <>
     <MapContainer
       center={center}
       zoom={zoom}
@@ -176,11 +212,22 @@ export function MapView({
         <HazardMarker key={h.id} hazard={h} />
       ))}
 
+      {emergencyRoute && (
+        <EmergencyRouteLayer route={emergencyRoute} destinationName={emergencyDestinationName} />
+      )}
+
       {showHospitals && hospitals?.map((h) => <HospitalMarker key={h.id} hospital={h} />)}
 
       <FlyToBounds bounds={bounds} />
       <MapEvents hazardPickMode={hazardPickMode} onPick={onPickLocation} />
       {onFullscreen && <MapControls onFullscreen={onFullscreen} isFullscreen={isFullscreen} />}
     </MapContainer>
+
+    {emergencyRoute && (
+      <div className="pointer-events-none absolute left-3 top-3 z-[1000] flex items-center gap-2 rounded-xl bg-red-600 px-3 py-2 text-xs font-extrabold tracking-wider text-white shadow-lg">
+        <Siren size={13} /> EMERGENCY ROUTE ACTIVE
+      </div>
+    )}
+    </>
   )
 }

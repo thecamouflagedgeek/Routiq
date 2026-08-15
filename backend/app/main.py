@@ -11,7 +11,8 @@ Endpoints:
     GET  /api/hospitals             (ranked by road ETA)
     POST /api/fatigue/session       (create a Sleep Drive session)
     POST /api/fatigue/event         (stream conversation events)
-    POST /api/emergency/activate    (hospitals + emergency number + countdown)
+    POST /api/emergency/activate    (dynamic OSM hospitals + emergency number + countdown)
+    GET  /api/emergency/route       (OSRM navigation route to the selected hospital)
 
 No API keys are required to run — every provider has a demo fallback and the
 response always declares whether data is LIVE or DEMO.
@@ -26,6 +27,7 @@ from app.models import (
     ConfigResponse,
     EmergencyActivateRequest,
     EmergencyResponse,
+    EmergencyRouteResponse,
     FatigueChatRequest,
     FatigueChatResponse,
     FatigueEvent,
@@ -39,7 +41,8 @@ from app.models import (
 )
 from app.providers.hazards import HazardService
 from app.providers.hospitals import HospitalProvider
-from app.providers.routing import get_route, polyline_length_km
+from app.providers.overpass import HospitalSearchError
+from app.providers.routing import get_emergency_route, get_route, polyline_length_km
 from app.providers.weather import get_weather
 from app.services.ai import assistant_reply
 from app.services.emergency import activate_emergency
@@ -75,7 +78,7 @@ async def health() -> dict:
 async def get_config() -> ConfigResponse:
     providers = {
         "routing": "tomtom" if settings.has_routing else "osrm + demo fallback",
-        "hospitals": "bundled dataset + demo fallback",
+        "hospitals": "openstreetmap (overpass)",
         "hazards": "demo layer + user reports",
         "traffic": "tomtom (live flow)" if settings.has_traffic else "demo (deterministic)",
         "weather": "openweather" if settings.has_weather else "demo (deterministic)",
@@ -249,4 +252,33 @@ async def fatigue_chat(req: FatigueChatRequest) -> FatigueChatResponse:
 
 @app.post("/api/emergency/activate", response_model=EmergencyResponse)
 async def emergency_activate(req: EmergencyActivateRequest) -> EmergencyResponse:
-    return await activate_emergency((req.lat, req.lon))
+    try:
+        return await activate_emergency((req.lat, req.lon), radius_km=req.radius_km)
+    except HospitalSearchError:
+        raise HTTPException(
+            status_code=503,
+            detail="Unable to retrieve nearby hospitals right now.",
+        ) from None
+
+
+@app.get("/api/emergency/route", response_model=EmergencyRouteResponse)
+async def emergency_route(
+    start_lat: float = Query(ge=-90, le=90),
+    start_lon: float = Query(ge=-180, le=180),
+    end_lat: float = Query(ge=-90, le=90),
+    end_lon: float = Query(ge=-180, le=180),
+    hospital_id: str = "",
+) -> EmergencyRouteResponse:
+    start, end = (start_lat, start_lon), (end_lat, end_lon)
+    result = await get_emergency_route(start, end)
+    return EmergencyRouteResponse(
+        source=result["source"],
+        provider=result["provider"],
+        start=start,
+        end=end,
+        distance_km=result["distance_km"],
+        duration_min=result["duration_min"],
+        geometry=result["geometry"],
+        steps=result["steps"],
+        hospital_id=hospital_id,
+    )

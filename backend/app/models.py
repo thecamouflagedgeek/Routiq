@@ -120,15 +120,36 @@ class Hospital(BaseModel):
     lat: float
     lon: float
     distance_km: float
-    eta_min: float
+    # None when no valid driving route exists — never a fabricated value.
+    eta_min: Optional[float] = None
     phone: str = ""
-    source: Literal["live", "demo"] = "demo"
-    eta_source: Literal["live", "estimated"] = "estimated"
+    source: Literal["live", "demo"] = "live"
+    eta_source: Literal["live", "estimated", "unavailable"] = "unavailable"
+
+
+class EmergencyRouteStep(BaseModel):
+    instruction: str
+    distance_m: int
+    name: str = ""
+
+
+class EmergencyRouteResponse(BaseModel):
+    source: Literal["live", "demo"]
+    provider: str
+    start: list[float]
+    end: list[float]
+    distance_km: float
+    duration_min: float
+    geometry: list[list[float]]  # [lat, lon] pairs
+    steps: list[EmergencyRouteStep] = Field(default_factory=list)
+    hospital_id: str = ""
+    computed_at: str = Field(default_factory=utcnow)
 
 
 class EmergencyActivateRequest(BaseModel):
     lat: float
     lon: float
+    radius_km: Optional[float] = None
 
 
 class EmergencyResponse(BaseModel):
@@ -138,6 +159,8 @@ class EmergencyResponse(BaseModel):
     map_link: str
     countdown_seconds: int
     hospitals: list[Hospital]
+    search_radius_km: float
+    hospitals_source: str = "overpass"  # OpenStreetMap / Overpass
     activated_at: str = Field(default_factory=utcnow)
 
 

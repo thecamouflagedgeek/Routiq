@@ -1,6 +1,7 @@
 import { API_BASE } from '../config'
 import type {
   EmergencyResponse,
+  EmergencyRoute,
   FatigueState,
   GeocodeResult,
   Hazard,
@@ -48,11 +49,21 @@ export const api = {
     return request<Hospital[]>(`/hospitals?lat=${lat}&lon=${lon}`)
   },
 
-  activateEmergency(lat: number, lon: number): Promise<EmergencyResponse> {
+  activateEmergency(lat: number, lon: number, radiusKm?: number): Promise<EmergencyResponse> {
     return request<EmergencyResponse>('/emergency/activate', {
       method: 'POST',
-      body: JSON.stringify({ lat, lon }),
+      body: JSON.stringify({ lat, lon, radius_km: radiusKm }),
     })
+  },
+
+  getEmergencyRoute(
+    start: [number, number],
+    end: [number, number],
+    hospitalId?: string,
+  ): Promise<EmergencyRoute> {
+    const q = `start_lat=${start[0]}&start_lon=${start[1]}&end_lat=${end[0]}&end_lon=${end[1]}`
+    const h = hospitalId ? `&hospital_id=${encodeURIComponent(hospitalId)}` : ''
+    return request<EmergencyRoute>(`/emergency/route?${q}${h}`)
   },
 
   createFatigueSession(thresholds?: Record<string, number>): Promise<FatigueState> {

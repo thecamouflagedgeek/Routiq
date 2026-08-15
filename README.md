@@ -11,7 +11,7 @@ An AI-powered mobility application combining high-end **Uber-inspired UI design*
 3. **Real Road Routing & Live Status Badges**: Live road routes from TomTom / OSRM routing providers with explicit `LIVE ROUTE` and `DEMO ROUTE` status indicators.
 4. **Deterministic Segment-Level Safety Engine**: Divides routes into ~750m segments and calculates weighted safety scores (0–100) based on Hazards (30%), Lighting (20%), Accidents (25%), Road Surface (15%), and Traffic (10%). Segments dynamically change color on Leaflet maps (`Green` = SAFE, `Yellow` = MODERATE, `Orange` = HIGH, `Red` = CRITICAL) with clickable risk factor breakdown drawers.
 5. **Sleep Drive Conversational Fatigue Engine**: Real-time voice latency detection using Web Speech API with escalation tiers (`NORMAL`, `MILD`, `ELEVATED`, `SEVERE`/`CRITICAL`) and `AI ACTIVE` / `DEMO ASSISTANT` badges.
-6. **One-Tap Emergency SOS Response**: Simulated crash detection with a 60-second confirmation countdown, GPS position, top 6 nearest hospitals ranked by actual driving ETA, location sharing, and emergency dial buttons.
+6. **One-Tap Emergency SOS Response**: Simulated crash detection with a 60-second confirmation countdown, real browser GPS, hospitals discovered live from OpenStreetMap/Overpass around your actual location (15 km radius), top 6 ranked by real OSRM road ETA, automatic OSRM navigation route drawn on the map with live turn-by-turn instructions, live GPS re-routing when you deviate, location sharing, and emergency dial buttons.
 
 ---
 
@@ -103,10 +103,13 @@ Follow this step-by-step flow to test all features:
 16. **Fatigue Escalation**: Observe the state escalate (`NORMAL` → `CAUTION` → `ESCALATE`).
 17. **Simulate Collision**: Navigate to `Emergency` tab and click **SIMULATE CRASH**.
 18. **Confirmation Modal**: Potential collision modal opens with a 60-second confirmation timer.
-19. **Activate Response**: Tap **Activate Emergency Response**.
-20. **Hospital Discovery**: GPS location identifies surrounding hospitals.
-21. **Driving ETA Ranking**: Top 6 hospitals rank by actual road driving ETA (e.g. `12 min`).
-22. **One-Tap Actions**: Test **Call Emergency** and **Share Location** buttons.
+19. **Activate Response**: Tap **Activate Emergency Response** — the browser requests your real GPS location.
+20. **Dynamic Hospital Discovery**: Live OpenStreetMap/Overpass query finds real hospitals around your GPS position (15 km radius) — no hardcoded list.
+21. **Road ETA Ranking**: Top 6 hospitals rank by real OSRM road ETA (e.g. `8 min`) — not straight-line distance.
+22. **Auto Navigation**: The fastest reachable hospital is selected and a real OSRM route is drawn on the map with distance, ETA, and the next turn instruction.
+23. **One-Tap Actions**: Test **Call Emergency** and **Share Location** buttons.
+
+> 💡 **Dev GPS override**: If the browser can't provide a GPS fix (e.g. non-HTTPS local testing), set `VITE_DEV_LOCATION="lat,lon"` in `frontend/.env` to simulate a location for development — it is never used when a real GPS fix exists.
 
 ---
 

@@ -121,6 +121,27 @@ export const DEFAULT_MAP_CENTER: [number, number] = [19.1000, 72.8500]
 export const DEFAULT_ZOOM = 12
 
 // ---------------------------------------------------------------------------
+// Emergency
+// ---------------------------------------------------------------------------
+
+// Hospital search radius the backend queries OpenStreetMap/Overpass with.
+export const EMERGENCY_SEARCH_RADIUS_KM = 15
+
+// Development-only GPS override: set VITE_DEV_LOCATION="lat,lon" to simulate a
+// GPS fix when the browser cannot provide one (e.g. non-HTTPS local testing).
+// Never used when a real GPS fix exists.
+const _devLocRaw = import.meta.env.VITE_DEV_LOCATION as string | undefined
+const _devLocParts = (_devLocRaw ?? '').split(',').map((p) => Number(p.trim()))
+export const DEV_LOCATION: { lat: number; lon: number } | null =
+  _devLocParts.length === 2 &&
+  Number.isFinite(_devLocParts[0]) &&
+  Number.isFinite(_devLocParts[1]) &&
+  Math.abs(_devLocParts[0]) <= 90 &&
+  Math.abs(_devLocParts[1]) <= 180
+    ? { lat: _devLocParts[0], lon: _devLocParts[1] }
+    : null
+
+// ---------------------------------------------------------------------------
 // Hazard metadata
 // ---------------------------------------------------------------------------
 export const HAZARD_TYPES: { value: HazardType; label: string }[] = [

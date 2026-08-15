@@ -78,10 +78,30 @@ export interface Hospital {
   lat: number
   lon: number
   distance_km: number
-  eta_min: number
+  // null when OSRM produced no valid driving route — never a fabricated value
+  eta_min: number | null
   phone: string
   source: 'live' | 'demo'
-  eta_source: 'live' | 'estimated'
+  eta_source: 'live' | 'estimated' | 'unavailable'
+}
+
+export interface RouteStep {
+  instruction: string
+  distance_m: number
+  name: string
+}
+
+export interface EmergencyRoute {
+  source: 'live' | 'demo'
+  provider: string
+  start: LatLng
+  end: LatLng
+  distance_km: number
+  duration_min: number
+  geometry: LatLng[]
+  steps: RouteStep[]
+  hospital_id: string
+  computed_at: string
 }
 
 export interface EmergencyResponse {
@@ -91,6 +111,8 @@ export interface EmergencyResponse {
   map_link: string
   countdown_seconds: number
   hospitals: Hospital[]
+  search_radius_km: number
+  hospitals_source: string
   activated_at: string
 }
 

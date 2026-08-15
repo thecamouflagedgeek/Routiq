@@ -13,11 +13,12 @@ A concise architectural overview of the FastAPI backend for **RoadSafe AI**, det
 | `/api/route` | `GET` | Route calculation + per-segment safety scoring | OSRM / TomTom + SafetyEngine |
 | `/api/safety-score` | `POST` | Custom polyline risk scoring | SafetyEngine |
 | `/api/hazards` | `GET` / `POST` | Spatial hazard lookup & user hazard reporting | Spatial HazardStore |
-| `/api/hospitals` | `GET` | Nearest hospitals ranked by live road ETA | Haversine + OSRM Matrix |
+| `/api/hospitals` | `GET` | Nearest hospitals ranked by live road ETA | OpenStreetMap/Overpass + OSRM |
 | `/api/fatigue/session` | `POST` | Init Sleep Drive monitoring session | FatigueEngine |
 | `/api/fatigue/event` | `POST` | Ingest voice latency events & update fatigue level | FatigueEngine |
 | `/api/fatigue/chat` | `POST` | AI fatigue check-in conversation | Gemini 2.0 Flash / Scripted AI |
-| `/api/emergency/activate` | `POST` | Trigger SOS mode, ranked hospitals & 60s countdown | Emergency Dispatch Engine |
+| `/api/emergency/activate` | `POST` | Trigger SOS mode, dynamic OSM hospitals ranked by road ETA & 60s countdown | Overpass + OSRM + Emergency Dispatch Engine |
+| `/api/emergency/route` | `GET` | OSRM navigation route to the selected hospital (geometry, ETA, turn steps) | OSRM (steps=true) |
 
 ---
 
@@ -29,7 +30,8 @@ A concise architectural overview of the FastAPI backend for **RoadSafe AI**, det
 | **Traffic Data** | TomTom Live Traffic | Spatial Speed Matrix | `4.0s` timeout (`< 2ms` fallback) |
 | **Weather Data** | OpenWeather API | Location-Seeded Demo Weather | `3.0s` timeout (`< 1ms` fallback) |
 | **AI Conversation** | Gemini 2.0 Flash | Scripted Conversational Assistant | `5.0s` timeout (`< 2ms` fallback) |
-| **Hospital Road ETA** | Live OSRM Route Matrix | Geodesic Haversine Formula | `2.5s` timeout (`< 3ms` fallback) |
+| **Hospital Discovery** | OpenStreetMap Overpass (`amenity=hospital`, 15 km radius) | Second Overpass mirror | `30s` timeout |
+| **Hospital Road ETA** | Live OSRM Route Matrix | — (never fabricated; unroutable hospitals show "Driving time unavailable") | `3.0s` per hospital (parallel) |
 
 ---
 
