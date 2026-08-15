@@ -250,6 +250,11 @@ class Settings:
     min_segments: int = _env_int("MIN_SEGMENTS", 4)
     hazard_radius_m: float = _env_float("HAZARD_RADIUS_METERS", 700.0)
 
+    # --- Real Mumbai risk datasets -------------------------------------------
+    # Distance within which a route segment is considered to pass near a
+    # recorded high-risk corridor / blackspot junction / pedestrian blackspot.
+    risk_match_radius_m: float = _env_float("RISK_MATCH_RADIUS_METERS", 1000.0)
+
     # --- Fatigue engine ------------------------------------------------------
     fatigue_thresholds: FatigueThresholds = field(default_factory=FatigueThresholds)
 
@@ -268,6 +273,15 @@ class Settings:
 
 
 settings = Settings()
+
+# Geographic extent of Greater Mumbai. The real risk datasets only apply to
+# routes inside this box — they must never be applied to other cities.
+MUMBAI_BOUNDS = {
+    "min_lat": 18.85,
+    "max_lat": 19.32,
+    "min_lon": 72.70,
+    "max_lon": 73.10,
+}
 
 RISK_LEVELS = {
     "SAFE": {"min": 80, "color": "#22c55e", "label": "Safe"},

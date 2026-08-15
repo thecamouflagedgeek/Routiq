@@ -5,6 +5,10 @@ export const API_BASE = import.meta.env.VITE_API_URL || '/api'
 // ---------------------------------------------------------------------------
 // Risk palette (matches backend risk_level_for thresholds)
 // ---------------------------------------------------------------------------
+export function safetyLabel(level: RiskLevel): string {
+  return RISK_META[level]?.label ?? level
+}
+
 export const RISK_META: Record<RiskLevel, { color: string; label: string; text: string }> = {
   SAFE: { color: '#22c55e', label: 'SAFE', text: 'text-green-600' },
   MODERATE: { color: '#facc15', label: 'MODERATE', text: 'text-yellow-500' },

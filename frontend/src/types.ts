@@ -20,7 +20,7 @@ export interface Hazard {
   lat: number
   lon: number
   description: string
-  source: 'demo' | 'user'
+  source: 'demo' | 'user' | 'dataset'
   reported_at: string
   distance_m?: number | null
 }
@@ -46,6 +46,33 @@ export interface Segment {
   explanation: FactorExplanation[]
   recommendation: string
   hazards: Hazard[]
+  risk_locations: RiskLocationMatch[]
+}
+
+export type RiskLocationSource =
+  | 'HIGH_RISK_CORRIDOR'
+  | 'BLACKSPOT_JUNCTION'
+  | 'PREDICTED_BLACKSPOT'
+
+export const RISK_LOCATION_SOURCE_LABELS: Record<RiskLocationSource, string> = {
+  HIGH_RISK_CORRIDOR: 'High-risk corridor',
+  BLACKSPOT_JUNCTION: 'Blackspot junction',
+  PREDICTED_BLACKSPOT: 'Pedestrian blackspot',
+}
+
+export interface RiskLocationMatch {
+  id: string
+  source: RiskLocationSource
+  type: string
+  name: string
+  latitude: number
+  longitude: number
+  distance_m: number
+  risk_score: number
+  risk_level: RiskLevel
+  accident_count?: number | null
+  period?: string | null
+  detail: string
 }
 
 export interface RouteResponse {
@@ -68,6 +95,26 @@ export interface RouteResponse {
     is_night: boolean
     source: 'live' | 'demo'
   } | null
+  computed_at: string
+}
+
+/** One selectable ride option shown in the bottom sheet + drawn on the map.
+ * Structurally compatible with RouteResponse so the map can render it as-is. */
+export interface RouteAlternative {
+  id: string
+  name: string
+  start: LatLng
+  end: LatLng
+  distance_km: number
+  duration_min: number
+  overall_score: number
+  overall_risk: RiskLevel
+  overall_color: string
+  source: 'live' | 'demo'
+  provider: string
+  geometry: LatLng[]
+  segments: Segment[]
+  hazards: Hazard[]
   computed_at: string
 }
 

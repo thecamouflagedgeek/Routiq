@@ -1,6 +1,6 @@
 import { AlertTriangle, Flag, Info, X } from 'lucide-react'
 import { SEVERITY_META } from '../config'
-import type { Segment } from '../types'
+import { RISK_LOCATION_SOURCE_LABELS, type Segment } from '../types'
 import { RiskBadge, SectionLabel } from './ui'
 
 interface Props {
@@ -55,6 +55,34 @@ export function SegmentPanel({ segment, onClose, onReportHazard }: Props) {
             </li>
           )}
         </ul>
+
+        {segment.risk_locations.length > 0 && (
+          <>
+            <div className="mb-1.5 mt-4 flex items-center gap-1.5">
+              <AlertTriangle size={13} className="text-neutral-400" />
+              <SectionLabel>Dataset evidence</SectionLabel>
+            </div>
+            <ul className="space-y-1.5">
+              {segment.risk_locations.map((m) => (
+                <li key={m.id} className="rounded-lg border border-red-100 bg-red-50/60 px-2.5 py-2 text-xs">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-semibold text-neutral-900">{m.name}</span>
+                    <span className="shrink-0 text-[10px] font-bold text-red-500">{Math.round(m.distance_m)} m</span>
+                  </div>
+                  <p className="mt-0.5 leading-snug text-neutral-600">{m.detail}</p>
+                  <div className="mt-1 flex items-center gap-1.5">
+                    <span className="rounded bg-neutral-900 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white">
+                      {RISK_LOCATION_SOURCE_LABELS[m.source]}
+                    </span>
+                    {m.period && (
+                      <span className="text-[9px] font-medium text-neutral-400">period {m.period}</span>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
 
         {segment.hazards.length > 0 && (
           <>

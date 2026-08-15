@@ -1,0 +1,664 @@
+{
+ "version": 1,
+ "entries": {
+  "Aarey Colony Road": {
+   "lat": 19.138026,
+   "lon": 72.896618,
+   "formatted": "Aarey Colony Road, Mumbai, Maharashtra, India"
+  },
+  "Adi Sankaracharya Marg": {
+   "lat": 19.126337,
+   "lon": 72.890157,
+   "formatted": "Adi Sankaracharya Marg, Mumbai, Maharashtra, India"
+  },
+  "Amar Mahal Junction Tilak Nagar Ghatkopar": {
+   "lat": 19.067405,
+   "lon": 72.899998,
+   "formatted": "Amar Mahal Junction Station, Mumbai, Maharashtra, India"
+  },
+  "Amar Mahal Junction, Tilak Nagar Ghatkopar": {
+   "lat": 19.067405,
+   "lon": 72.899998,
+   "formatted": "Amar Mahal Junction Station, Mumbai, Maharashtra, India"
+  },
+  "Amar Mahal Junction, Tilak Nagar, Ghatkopar": {
+   "lat": 19.067405,
+   "lon": 72.899998,
+   "formatted": "Amar Mahal Junction Station, Mumbai, Maharashtra, India"
+  },
+  "Amar Mahal junction, Tilak Nagar, Ghatkopar East": {
+   "lat": 19.067405,
+   "lon": 72.899998,
+   "formatted": "Amar Mahal Junction Station, Mumbai, Maharashtra, India"
+  },
+  "Asha Nagar Road": {
+   "lat": 19.200641,
+   "lon": 72.861444,
+   "formatted": "Asha Nagar Road, Mumbai Suburban District, Maharashtra, India"
+  },
+  "Balasaheb Thackeray Flyover": {
+   "lat": 19.140076,
+   "lon": 72.853644,
+   "formatted": "Balasaheb Thackeray Flyover, Mumbai, Maharashtra, India"
+  },
+  "Bandra Kurla Complex Road": {
+   "lat": 19.0709,
+   "lon": 72.874027,
+   "formatted": "Bandra Kurla Complex Road, Mumbai, Maharashtra, India"
+  },
+  "CST Road, Santacruz East": {
+   "lat": 19.07401,
+   "lon": 72.868994,
+   "formatted": "ibis Mumbai BKC, Mumbai, Maharashtra, India"
+  },
+  "Chatrapati Shivaji Maharaj Circle, Govandi East": {
+   "lat": 19.108114,
+   "lon": 72.848412,
+   "formatted": "Chatrapati Shivaji Road, Mumbai, Maharashtra, India"
+  },
+  "Chedda nagar junction, Ghatkopar East": {
+   "lat": 19.070703,
+   "lon": 72.907376,
+   "formatted": "Chedda Nagar Junction, Mumbai, Maharashtra, India"
+  },
+  "Dr. Babasaheb Ambedkar Road": {
+   "lat": 19.126382,
+   "lon": 72.894271,
+   "formatted": "Dr. Babasaheb Ambedkar, Mumbai, Maharashtra, India"
+  },
+  "Dr. Kashinath Ghanekar Chowk Prabhadevi": {
+   "lat": 19.016337,
+   "lon": 72.829166,
+   "formatted": "Dr Kashinath Ghanekar Chowk, Mumbai City District, Maharashtra, India"
+  },
+  "Eastern Express Highway": {
+   "lat": 18.945043,
+   "lon": 72.834658,
+   "formatted": "Eastern Express Highway, Mumbai City District, Maharashtra, India"
+  },
+  "Eastern Freeway": {
+   "lat": 18.997375,
+   "lon": 72.856706,
+   "formatted": "Eastern Freeway South- MTHL Ramp, Mumbai City District, Maharashtra, India"
+  },
+  "General A K Vaidya Marg": {
+   "lat": 19.175534,
+   "lon": 72.869966,
+   "formatted": "General A K Vaidya Marg, Mumbai, Maharashtra, India"
+  },
+  "Ghatkopar Flyover": {
+   "lat": 19.086294,
+   "lon": 72.92288,
+   "formatted": "Ghatkopar Flyover, Mumbai, Maharashtra, India"
+  },
+  "Ghatkopar Mahul Road": {
+   "lat": 19.065755,
+   "lon": 72.89937,
+   "formatted": "Ghatkopar Mahul Road, Mumbai, Maharashtra, India"
+  },
+  "Godrej Junction, Pirojshanagar, Vikhroli": {
+   "lat": 19.093107,
+   "lon": 72.92222,
+   "formatted": "Vikhroli Social, Mumbai, Maharashtra, India"
+  },
+  "Goregaon Mulund Link Road": {
+   "lat": 19.172687,
+   "lon": 72.852189,
+   "formatted": "Goregaon Mulund Link Road, Mumbai, Maharashtra, India"
+  },
+  "Gundavali Bus Stop, Andheri East": {
+   "lat": 19.114509,
+   "lon": 72.855177,
+   "formatted": "Gundavali, Mumbai, Maharashtra, India"
+  },
+  "IIT Main Gate Junction": {
+   "lat": 19.12462,
+   "lon": 72.915968,
+   "formatted": "IIT Main Gate, Mumbai, Maharashtra, India"
+  },
+  "Intersection Kamlakar Pant Walawalkar Marg and P Tandon Marg": {
+   "lat": 19.116395,
+   "lon": 72.829934,
+   "formatted": "Kamalakar Pant Walawalkar Marg, Mumbai, Maharashtra, India"
+  },
+  "Intersection WEH and Thakur village road Kandivali East": {
+   "lat": 19.214446,
+   "lon": 72.874507,
+   "formatted": "बाबा एंड मोचा, Mumbai, Maharashtra, India"
+  },
+  "Intersection of JVLR and Western Express highway": {
+   "lat": 19.253707,
+   "lon": 72.86766,
+   "formatted": "thakur ramnarayan college of Arts and Commerce, Mumbai, Maharashtra, India"
+  },
+  "Intersection of New Link road and Yogi Nagar Marg": {
+   "lat": 19.176475,
+   "lon": 72.838583,
+   "formatted": "Dr. Amit Jain renowned Spine specialist in mumbai, Mumbai, Maharashtra, India"
+  },
+  "Intersection of WEH and Goregaon Mulund Link Road": {
+   "lat": 19.159978,
+   "lon": 72.947241,
+   "formatted": "Wellness Hub Medical And General Store, Mumbai, Maharashtra, India"
+  },
+  "Intersection of Western Express Highway and Mathuradas Vasanji Road": {
+   "lat": 19.115853,
+   "lon": 72.856442,
+   "formatted": "Western Express Highway, Mumbai, Maharashtra, India"
+  },
+  "J.J. Flyover": {
+   "lat": 18.964186,
+   "lon": 72.832155,
+   "formatted": "J.J. Flyover, Mumbai City District, Maharashtra, India"
+  },
+  "Jogeshwari - Vikhroli Link Road": {
+   "lat": 19.119448,
+   "lon": 72.903958,
+   "formatted": "Jogeshwari-Vikhroli Link Road, Mumbai, Maharashtra, India"
+  },
+  "King Circle Junction, Matunga": {
+   "lat": 19.026566,
+   "lon": 72.8561,
+   "formatted": "Knowledge Junction, Mumbai City District, Maharashtra, India"
+  },
+  "LBS Marg": {
+   "lat": 19.102434,
+   "lon": 72.919957,
+   "formatted": "LBS Marg, Mumbai, Maharashtra, India"
+  },
+  "Lal Bahadur Shastri Marg": {
+   "lat": 19.081654,
+   "lon": 72.881638,
+   "formatted": "Lal Bahadur Shastri Marg, Mumbai, Maharashtra, India"
+  },
+  "Malad - Marve Road": {
+   "lat": 19.195609,
+   "lon": 72.833727,
+   "formatted": "Malad Marve Road, Mumbai Suburban District, Maharashtra, India"
+  },
+  "Malad Marve Road": {
+   "lat": 19.195609,
+   "lon": 72.833727,
+   "formatted": "Malad Marve Road, Mumbai Suburban District, Maharashtra, India"
+  },
+  "Marve Road": {
+   "lat": 19.157617,
+   "lon": 72.786577,
+   "formatted": "Madh Marve Road, Mumbai, Maharashtra, India"
+  },
+  "Mathuradas Vasanji Road (Andheri - Kurla Road)": {
+   "lat": 19.077798,
+   "lon": 72.880246,
+   "formatted": "Mathuradas Vasanji Road (Andheri Kurla Road), Mumbai, Maharashtra, India"
+  },
+  "Mathuradas Vasanji Road (Andheri Kurla Road)": {
+   "lat": 19.077798,
+   "lon": 72.880246,
+   "formatted": "Mathuradas Vasanji Road (Andheri Kurla Road), Mumbai, Maharashtra, India"
+  },
+  "Mulund - Airoli Link Road": {
+   "lat": 19.15458,
+   "lon": 72.95708,
+   "formatted": "Mulund - Airoli Link Road, Mumbai, Maharashtra, India"
+  },
+  "Mulund Airoli Interchange, Mulund East": {
+   "lat": 19.153614,
+   "lon": 72.993472,
+   "formatted": "Maharashtra Seva Sangh Mulund Airoli Branch, Navi Mumbai, Maharashtra, India"
+  },
+  "NS Road": {
+   "lat": 19.102376,
+   "lon": 72.833891,
+   "formatted": "NS Road No 5, Mumbai, Maharashtra, India"
+  },
+  "Priyadarshini Junction": {
+   "lat": 19.053128,
+   "lon": 72.881298,
+   "formatted": "Hasu Advani Chowk, Mumbai, Maharashtra, India"
+  },
+  "Priyadarshini Junction, Chunabhatti": {
+   "lat": 19.053808,
+   "lon": 72.881098,
+   "formatted": "Priyadarshini Chunabhatti, Mumbai, Maharashtra, India"
+  },
+  "Rafi Ahmed Kidwai Marg": {
+   "lat": 19.02922,
+   "lon": 72.857377,
+   "formatted": "Rafi Ahmed Kidwai Marg, Mumbai City District, Maharashtra, India"
+  },
+  "Sanjay Gandhi National Park Junction, Borivali East": {
+   "lat": 19.231517,
+   "lon": 72.863658,
+   "formatted": "Kanheri Caves Road, Mumbai Suburban District, Maharashtra, India"
+  },
+  "Sanjay Ghandhi National Park Junction": {
+   "lat": 19.231517,
+   "lon": 72.863658,
+   "formatted": "Kanheri Caves Road, Mumbai Suburban District, Maharashtra, India"
+  },
+  "Santa Cruz - Chembur Link Road": {
+   "lat": 19.076629,
+   "lon": 72.876481,
+   "formatted": "Santa Cruz – Chembur Link Road, Mumbai, Maharashtra, India"
+  },
+  "Santacruz - Chembur Link Road": {
+   "lat": 19.07401,
+   "lon": 72.868994,
+   "formatted": "ibis Mumbai BKC, Mumbai, Maharashtra, India"
+  },
+  "Santacruz Chembur Link Road": {
+   "lat": 19.07401,
+   "lon": 72.868994,
+   "formatted": "ibis Mumbai BKC, Mumbai, Maharashtra, India"
+  },
+  "Sion - Panvel Highway": {
+   "lat": 19.054209,
+   "lon": 72.891983,
+   "formatted": "Sion Panvel Highway, Mumbai, Maharashtra, India"
+  },
+  "Sion Circle Junction": {
+   "lat": 19.042564,
+   "lon": 72.864302,
+   "formatted": "Sion Circle, Mumbai City District, Maharashtra, India"
+  },
+  "Sion Circle Junction (Rani Laxmi Bai Udyan)": {
+   "lat": 19.042553,
+   "lon": 72.863852,
+   "formatted": "Rani Laxmi Bai Udyan, Mumbai City District, Maharashtra, India"
+  },
+  "Sion Circle Junction, Sion": {
+   "lat": 19.042564,
+   "lon": 72.864302,
+   "formatted": "Sion Circle, Mumbai City District, Maharashtra, India"
+  },
+  "Sion Panvel Highway": {
+   "lat": 19.054209,
+   "lon": 72.891983,
+   "formatted": "Sion Panvel Highway, Mumbai, Maharashtra, India"
+  },
+  "Swami Vivekanand Road": {
+   "lat": 19.082592,
+   "lon": 72.837927,
+   "formatted": "Swami Vivekanand Road, Mumbai, Maharashtra, India"
+  },
+  "Vasantdada Patil Marg": {
+   "lat": 19.091493,
+   "lon": 72.913107,
+   "formatted": "Vasantdada Patil Marg, Mumbai, Maharashtra, India"
+  },
+  "Veer Kotwal Udyan chowk, Dadar west": {
+   "lat": 19.021447,
+   "lon": 72.842434,
+   "formatted": "Veer Kotwal Udyan, Mumbai City District, Maharashtra, India"
+  },
+  "Western Express Highway, Service Road": {
+   "lat": 19.115853,
+   "lon": 72.856442,
+   "formatted": "Western Express Highway, Mumbai, Maharashtra, India"
+  },
+  "Worli Seaface Junction, Worli": {
+   "lat": 19.010824,
+   "lon": 72.817347,
+   "formatted": "Worli Seaface, Mumbai City District, Maharashtra, India"
+  },
+  "Andheri Kurla Road": {
+   "lat": 19.077798,
+   "lon": 72.880246,
+   "formatted": "Mathuradas Vasanji Road (Andheri Kurla Road), Mumbai, Maharashtra, India"
+  },
+  "Bombay Port Trust Road": {
+   "lat": 18.944834,
+   "lon": 72.842864,
+   "formatted": "Mumbai Port Trust, Mumbai City District, Maharashtra, India"
+  },
+  "Dr Babasaheb Ambedkar Marg": {
+   "lat": 19.045392,
+   "lon": 73.01764,
+   "formatted": "Dr. Babasaheb Ambedkar Marg, Navi Mumbai, Maharashtra, India"
+  },
+  "Ghatkopar - Mahul Road": {
+   "lat": 19.065755,
+   "lon": 72.89937,
+   "formatted": "Ghatkopar Mahul Road, Mumbai, Maharashtra, India"
+  },
+  "Godrej Junction, Pirojshanagar, Vikhroli East": {
+   "lat": 19.094815,
+   "lon": 72.921561,
+   "formatted": "Godrej Two, Mumbai, Maharashtra, India"
+  },
+  "New Link Road": {
+   "lat": 19.139819,
+   "lon": 72.842287,
+   "formatted": "Off New Link Road, Mumbai, Maharashtra, India"
+  },
+  "Ramakrishna Chemburkar Marg (Ghatkopar - Mahul Road)": {
+   "lat": 19.048594,
+   "lon": 72.893332,
+   "formatted": "Ramakrishna Chemburkar Marg (Ghatkopar Mahul Road), Mumbai, Maharashtra, India"
+  },
+  "Senapati Bapat Marg": {
+   "lat": 19.043985,
+   "lon": 72.844931,
+   "formatted": "Senapati Bapat Marg, Mumbai City District, Maharashtra, India"
+  },
+  "Sonapur Signal Crossing": {
+   "lat": 19.163761,
+   "lon": 72.937746,
+   "formatted": "Sonapur Signal, Mumbai, Maharashtra, India"
+  },
+  "Western Express Highway": {
+   "lat": 19.058218,
+   "lon": 72.846586,
+   "formatted": "Western Express Highway, Mumbai, Maharashtra, India"
+  },
+  "Ghatkopar - Mankhurd Link Road": {
+   "lat": 19.063037,
+   "lon": 72.914808,
+   "formatted": "Ghatkopar - Mankhurd Link Road, Mumbai, Maharashtra, India"
+  },
+  "Intersection Of Ghatkopar Andheri Link Road and Eastern Express Highway": {
+   "lat": 19.091826,
+   "lon": 72.903553,
+   "formatted": "Ghatkopar-Andheri Link Road Extention, Mumbai, Maharashtra, India"
+  },
+  "Intersection of A B Holkar Marg and Lal Bahadur Shastri Marg, Vikhroli West": {
+   "lat": 19.121271,
+   "lon": 72.925503,
+   "formatted": "Lal Bahadur Shastri Marg, Mumbai, Maharashtra, India"
+  },
+  "Intersection of Bombay Port Trust Road and Santa Savta Mali Marg, Byculla": {
+   "lat": 18.944834,
+   "lon": 72.842864,
+   "formatted": "Mumbai Port Trust, Mumbai City District, Maharashtra, India"
+  },
+  "Intersection of Dr Baba Sahab Ambedkar Road and RL Kelkar Road, Sion West": {
+   "lat": 18.988659,
+   "lon": 72.835907,
+   "formatted": "Dr Baba Saheb Ambedkar Marg (Victoria Garden Road), Mumbai City District, Maharashtra, India"
+  },
+  "Intersection of EEH and Andheri - Ghatkopar Link Road, Ghatkopar East": {
+   "lat": 18.945043,
+   "lon": 72.834658,
+   "formatted": "Eastern Express Highway, Mumbai City District, Maharashtra, India"
+  },
+  "Intersection of EEH and Mulund - Airoli Link Road, Mulund East": {
+   "lat": 18.945043,
+   "lon": 72.834658,
+   "formatted": "Eastern Express Highway, Mumbai City District, Maharashtra, India"
+  },
+  "Intersection of EEH and RL Kelakar Road, Sion Circle": {
+   "lat": 18.945043,
+   "lon": 72.834658,
+   "formatted": "Eastern Express Highway, Mumbai City District, Maharashtra, India"
+  },
+  "Intersection of EEH and Sion Station Road, Sion East": {
+   "lat": 19.049706,
+   "lon": 72.872333,
+   "formatted": "Sion Panvel Highway, Mumbai City District, Maharashtra, India"
+  },
+  "Intersection of Eastern Express Highway and Goregaon Mulund Link Road": {
+   "lat": 18.945043,
+   "lon": 72.834658,
+   "formatted": "Eastern Express Highway, Mumbai City District, Maharashtra, India"
+  },
+  "Intersection of Eastern Express Highway and Postal Colony Road, Chembur East": {
+   "lat": 19.061479,
+   "lon": 72.893568,
+   "formatted": "Eastern Express Highway, Mumbai, Maharashtra, India"
+  },
+  "Intersection of Eastern Express Highway and VN Purav Marg, Chembur": {
+   "lat": 18.945043,
+   "lon": 72.834658,
+   "formatted": "Eastern Express Highway, Mumbai City District, Maharashtra, India"
+  },
+  "Intersection of Eastern Free Way Sant Savata Marg": {
+   "lat": 18.975909,
+   "lon": 72.84343,
+   "formatted": "Sant Savata Marg, Mumbai City District, Maharashtra, India"
+  },
+  "Intersection of Eastern Freeway and Ghatkopar - Mankhurd Link Road": {
+   "lat": 18.997375,
+   "lon": 72.856706,
+   "formatted": "Eastern Freeway South- MTHL Ramp, Mumbai City District, Maharashtra, India"
+  },
+  "Intersection of Eastern Freeway and Ghatkopar - Mankhurd Link road": {
+   "lat": 18.997375,
+   "lon": 72.856706,
+   "formatted": "Eastern Freeway South- MTHL Ramp, Mumbai City District, Maharashtra, India"
+  },
+  "Intersection of Ghatkopar Mankhurd Link road and Eastern Freeway": {
+   "lat": 19.063037,
+   "lon": 72.914808,
+   "formatted": "Ghatkopar - Mankhurd Link Road, Mumbai, Maharashtra, India"
+  },
+  "Intersection of Goregaon Mulund Link Road and Western Express Highway": {
+   "lat": 19.172687,
+   "lon": 72.852189,
+   "formatted": "Goregaon Mulund Link Road, Mumbai, Maharashtra, India"
+  },
+  "Intersection of JVLR and Eastern Express Highway": {
+   "lat": 19.119448,
+   "lon": 72.903958,
+   "formatted": "Jogeshwari-Vikhroli Link Road, Mumbai, Maharashtra, India"
+  },
+  "Intersection of JVLR and Eastern Express highway": {
+   "lat": 19.119448,
+   "lon": 72.903958,
+   "formatted": "Jogeshwari-Vikhroli Link Road, Mumbai, Maharashtra, India"
+  },
+  "Intersection of JVLR and Eastern Express highway, Vikhroli": {
+   "lat": 19.119448,
+   "lon": 72.903958,
+   "formatted": "Jogeshwari-Vikhroli Link Road, Mumbai, Maharashtra, India"
+  },
+  "Intersection of Jogeshwari - Vikhroli Link Road and Reserved Forces Camp Road, Andheri East": {
+   "lat": 19.119448,
+   "lon": 72.903958,
+   "formatted": "Jogeshwari-Vikhroli Link Road, Mumbai, Maharashtra, India"
+  },
+  "Intersection of Lady Jamshedji road and Old Cadel Road": {
+   "lat": 19.03637,
+   "lon": 72.842734,
+   "formatted": "Ashwini Accident Hospital and Poly Clinic, Mumbai City District, Maharashtra, India"
+  },
+  "Intersection of SV Road and Ram Mandir Road": {
+   "lat": 19.151023,
+   "lon": 72.850147,
+   "formatted": "Ram Mandir, Mumbai, Maharashtra, India"
+  },
+  "Intersection of Sant Rohidas Marg and Dharavi Depot": {
+   "lat": 19.048073,
+   "lon": 72.859704,
+   "formatted": "Sant Rohidas Marg, Mumbai City District, Maharashtra, India"
+  },
+  "Intersection of Santacruz Chembur Link Road and LBS Road": {
+   "lat": 19.07401,
+   "lon": 72.868994,
+   "formatted": "ibis Mumbai BKC, Mumbai, Maharashtra, India"
+  },
+  "Intersection of Sion Bandra Link Road and BKC Main Road, Bandra East": {
+   "lat": 19.053797,
+   "lon": 72.846663,
+   "formatted": "Sion Bandra Link Road, Mumbai, Maharashtra, India"
+  },
+  "Intersection of Sion Panvel Highway and Eastern Free Way (Shivaji Chowk)": {
+   "lat": 19.054209,
+   "lon": 72.891983,
+   "formatted": "Sion Panvel Highway, Mumbai, Maharashtra, India"
+  },
+  "Intersection of Sion Panvel Highway and Eastern Freeway (Shivaji Chowk)": {
+   "lat": 19.054209,
+   "lon": 72.891983,
+   "formatted": "Sion Panvel Highway, Mumbai, Maharashtra, India"
+  },
+  "Intersection of Sion Panvel Highway and Ghatkopar - Mankhurd Link Road": {
+   "lat": 19.054209,
+   "lon": 72.891983,
+   "formatted": "Sion Panvel Highway, Mumbai, Maharashtra, India"
+  },
+  "Intersection of Sion Panvel Highway and Ghatkopar - Mankhurd Link Road, Mankhurd": {
+   "lat": 19.054209,
+   "lon": 72.891983,
+   "formatted": "Sion Panvel Highway, Mumbai, Maharashtra, India"
+  },
+  "Intersection of Sion Panvel Highway and Ghatkopar Mankhurd Link Road": {
+   "lat": 19.054209,
+   "lon": 72.891983,
+   "formatted": "Sion Panvel Highway, Mumbai, Maharashtra, India"
+  },
+  "Intersection of Sion Panvel Highway and Ghatkopar Mankhurd Link Road, Mankhurd": {
+   "lat": 19.054209,
+   "lon": 72.891983,
+   "formatted": "Sion Panvel Highway, Mumbai, Maharashtra, India"
+  },
+  "Intersection of Swami Vivekanand Road and GK Gokhlale Bridge, Andheri West": {
+   "lat": 19.082592,
+   "lon": 72.837927,
+   "formatted": "Swami Vivekanand Road, Mumbai, Maharashtra, India"
+  },
+  "Intersection of V N Purav Marg and Ramkrishna Chemburkar Marg, Chembur": {
+   "lat": 19.052642,
+   "lon": 72.894279,
+   "formatted": "VNP & RC Marg Junction, Mumbai, Maharashtra, India"
+  },
+  "Intersection of VN Purav and Ghatkopar - Mankhurd Link Road": {
+   "lat": 19.043499,
+   "lon": 72.92326,
+   "formatted": "V.N. Purav Marg, Mumbai, Maharashtra, India"
+  },
+  "Intersection of Veer Sawarkar Marg and Vikhroli Parksite Road No 7, Vikhroli West": {
+   "lat": 19.034486,
+   "lon": 73.042696,
+   "formatted": "Swatantra Veer Sawarkar Park, Navi Mumbai, Maharashtra, India"
+  },
+  "Intersection of WEH and 90 feet Road, Dattani Park junction, Kandivali": {
+   "lat": 19.058218,
+   "lon": 72.846586,
+   "formatted": "Western Express Highway, Mumbai, Maharashtra, India"
+  },
+  "Intersection of WEH and Akurli Road": {
+   "lat": 19.198159,
+   "lon": 72.86049,
+   "formatted": "Akurli, Mumbai Suburban District, Maharashtra, India"
+  },
+  "Intersection of WEH and Ananta Kanekar Marg, Bandra East": {
+   "lat": 19.058218,
+   "lon": 72.846586,
+   "formatted": "Western Express Highway, Mumbai, Maharashtra, India"
+  },
+  "Intersection of WEH and Dattapada Road, Magathane depot junction, Borivali": {
+   "lat": 19.058218,
+   "lon": 72.846586,
+   "formatted": "Western Express Highway, Mumbai, Maharashtra, India"
+  },
+  "Intersection of WEH and JVLR": {
+   "lat": 19.058218,
+   "lon": 72.846586,
+   "formatted": "Western Express Highway, Mumbai, Maharashtra, India"
+  },
+  "Intersection of WEH and JVLR, Jogeshwari East": {
+   "lat": 19.058218,
+   "lon": 72.846586,
+   "formatted": "Western Express Highway, Mumbai, Maharashtra, India"
+  },
+  "Intersection of WEH and Jawaharlal Neharu Road": {
+   "lat": 19.115853,
+   "lon": 72.856442,
+   "formatted": "Western Express Highway, Mumbai, Maharashtra, India"
+  },
+  "Intersection of WEH and Jawaharlal Nehru Road": {
+   "lat": 19.115853,
+   "lon": 72.856442,
+   "formatted": "Western Express Highway, Mumbai, Maharashtra, India"
+  },
+  "Intersection of WEH and N.S.Phadake Marg": {
+   "lat": 19.124923,
+   "lon": 72.856329,
+   "formatted": "Western Express Highway, Mumbai, Maharashtra, India"
+  },
+  "Intersection of WEH and Nehru Road, Santacruz East": {
+   "lat": 19.115853,
+   "lon": 72.856442,
+   "formatted": "Western Express Highway, Mumbai, Maharashtra, India"
+  },
+  "Intersection of WEH and Nehru Road, Vile parle East": {
+   "lat": 19.058218,
+   "lon": 72.846586,
+   "formatted": "Western Express Highway, Mumbai, Maharashtra, India"
+  },
+  "Intersection of WEH and Sion - Bandra Link Road, Bandra East": {
+   "lat": 19.058218,
+   "lon": 72.846586,
+   "formatted": "Western Express Highway, Mumbai, Maharashtra, India"
+  },
+  "Intersection of WEH and Sion Bandra Link Road (Kalanagar Junction), Bandra East": {
+   "lat": 19.058218,
+   "lon": 72.846586,
+   "formatted": "Western Express Highway, Mumbai, Maharashtra, India"
+  },
+  "Intersection of Western Express Highway and Akurli Road": {
+   "lat": 19.198159,
+   "lon": 72.86049,
+   "formatted": "Akurli, Mumbai Suburban District, Maharashtra, India"
+  },
+  "Intersection of Western Express Highway and Jogeshwari - Vikhroli Link Road, Joeshwari East": {
+   "lat": 19.058218,
+   "lon": 72.846586,
+   "formatted": "Western Express Highway, Mumbai, Maharashtra, India"
+  },
+  "Intersection of Western Express Highway and Nehru Road, Santacruz East": {
+   "lat": 19.058218,
+   "lon": 72.846586,
+   "formatted": "Western Express Highway, Mumbai, Maharashtra, India"
+  },
+  "Intersection of Western Express Highway and Sir Mathurdas Vasanji Road, Andheri East": {
+   "lat": 19.115853,
+   "lon": 72.856442,
+   "formatted": "Western Express Highway, Mumbai, Maharashtra, India"
+  },
+  "Intersection of Dr. Anandrao Nair Marg and Jehangir Boman Behram Marg": {
+   "lat": 18.974296,
+   "lon": 72.821972,
+   "formatted": "Dr Anandrao Nair Hospital and Topiwala Medical College, Mumbai City District, Maharashtra, India"
+  },
+  "Intersection of EEH and JVLR, Kanjurmarg East": {
+   "lat": 18.945043,
+   "lon": 72.834658,
+   "formatted": "Eastern Express Highway, Mumbai City District, Maharashtra, India"
+  },
+  "Intersection of LBS Marg and AGLR Ext. Road (near Shreyas bus stop) (on LBS)": {
+   "lat": 19.081654,
+   "lon": 72.881638,
+   "formatted": "Lal Bahadur Shastri Marg, Mumbai, Maharashtra, India"
+  },
+  "Intersection of WEH and Jawaharlal Nehru Road, Santacruz East": {
+   "lat": 19.058218,
+   "lon": 72.846586,
+   "formatted": "Western Express Highway, Mumbai, Maharashtra, India"
+  },
+  "Intersection of WEH and KC Marg, Bandra West": {
+   "lat": 19.058218,
+   "lon": 72.846586,
+   "formatted": "Western Express Highway, Mumbai, Maharashtra, India"
+  },
+  "Intersection of WEH and SD Mandir Road, Bandra East": {
+   "lat": 19.058218,
+   "lon": 72.846586,
+   "formatted": "Western Express Highway, Mumbai, Maharashtra, India"
+  },
+  "Intersection of WEH and Sion Bandra Link Road (Kalanagar Junction)": {
+   "lat": 19.058218,
+   "lon": 72.846586,
+   "formatted": "Western Express Highway, Mumbai, Maharashtra, India"
+  },
+  "Baiganwadi Signal Junction, Deonar": null,
+  "Baiganwadi Signal Junction, Deonar, Mumbai": null,
+  "Godrej Ghodagate Signal, Thane- Mumbai Way, Vikhroli East": null,
+  "Intersection of LBS road & Santacruz Chembur Link Road": null,
+  "Kherwadi Junction Signal, After Bus Stop of Kherwadi, WEH, Bandra East": null,
+  "Narayan Bodhe Chowk, EEH, Vikhroli East": null,
+  "Ovaripada Metro Station Junction, Borivali": null,
+  "Towards Sea Link, Mahim Cause Way Junction, Near Bandra Chowky, U-Bridge, WEH": null,
+  "WEH near Dattani Park Bus Stop, Kandivali East": null
+ }
+}

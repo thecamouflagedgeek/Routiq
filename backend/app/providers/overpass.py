@@ -13,7 +13,10 @@ import httpx
 
 from app.config import settings
 from app.providers.base import Point
+<<<<<<< HEAD
 from app.services.http import Log, request_with_retry
+=======
+>>>>>>> member-3
 
 
 class HospitalSearchError(RuntimeError):
@@ -90,10 +93,8 @@ def _parse_elements(elements: list[dict]) -> list[dict]:
 async def query_hospitals(point: Point, radius_km: float) -> list[dict]:
     """Query OpenStreetMap/Overpass for hospitals within `radius_km`.
 
-    Tries each configured Overpass mirror in order, retrying transient
-    failures (timeouts / 429 / 5xx) on each mirror before moving to the
-    next one — the same retry policy Groq/Sarvam/ElevenLabs already get.
-    Raises HospitalSearchError when no mirror answers with valid data.
+    Tries each configured Overpass mirror in order. Raises HospitalSearchError
+    when no mirror answers with valid data.
     """
     lat, lon = point
     timeout = int(max(10, min(60, settings.overpass_timeout)))
@@ -104,23 +105,16 @@ async def query_hospitals(point: Point, radius_km: float) -> list[dict]:
         if not url:
             continue
         try:
-            resp = await request_with_retry(
-                "POST",
-                url,
-                data=query,
-                timeout=timeout,
-                tag="overpass",
-            )
-            resp.raise_for_status()
-            data = resp.json()
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                resp = await client.post(url, data={"data": query})
+                resp.raise_for_status()
+                data = resp.json()
         except Exception as exc:  # noqa: BLE001 - network/parse failures fall through to next mirror
             last_error = exc
-            Log.warn("overpass", f"mirror failed ({url}): {type(exc).__name__}: {exc}")
             continue
         remark = (data.get("remark") or "").lower()
         if "timeout" in remark or "error" in remark:
             last_error = RuntimeError(remark)
-            Log.warn("overpass", f"mirror returned remark ({url}): {remark}")
             continue
         hospitals = _parse_elements(data.get("elements") or [])
         if hospitals:
@@ -129,6 +123,5 @@ async def query_hospitals(point: Point, radius_km: float) -> list[dict]:
         # concluding "no hospitals" (only a unanimous empty result counts).
         empty_mirrors += 1
     if empty_mirrors == 0:
-        Log.warn("overpass", f"all mirrors failed, last_error={last_error}")
         raise HospitalSearchError(f"Overpass unavailable: {last_error}") from last_error
     return []  # every reachable mirror agreed there are no hospitals nearby

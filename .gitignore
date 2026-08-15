@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # --- secrets / environment ---
 .env
 .env.*
@@ -22,4 +23,7 @@ build/
 # --- misc ---
 .DS_Store
 *.log
+=======
+# Freebuff sandbox worktrees (development copies - ignore)
+>>>>>>> member-3
 .freebuff/

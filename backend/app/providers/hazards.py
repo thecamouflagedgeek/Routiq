@@ -89,13 +89,14 @@ class HazardService:
         return [Hazard(**h) for h in self._store.get()]
 
     def all_hazards(self, center: Point, radius_m: Optional[float] = None,
-                    limit: int = 60) -> list[Hazard]:
+                    limit: int = 60, include_demo: bool = True) -> list[Hazard]:
         user = self.user_hazards()
         if radius_m:
             for h in user:
                 h.distance_m = round(haversine_km(center, (h.lat, h.lon)) * 1000, 0)
             user = [h for h in user if (h.distance_m or 0) <= radius_m]
-        demo = self.demo_hazards_near(center, radius_m or settings.hazard_radius_m, limit)
+        demo = (self.demo_hazards_near(center, radius_m or settings.hazard_radius_m, limit)
+                if include_demo else [])
         merged = user + demo
         merged.sort(key=lambda h: h.distance_m if h.distance_m is not None else 1e9)
         return merged[:limit]
