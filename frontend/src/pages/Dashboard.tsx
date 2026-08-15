@@ -5,10 +5,11 @@ import { HazardForm } from "../components/HazardForm";
 import { MapView } from "../components/map/MapView";
 import { PlaceAutocomplete } from "../components/PlaceAutocomplete";
 import { SegmentPanel } from "../components/SegmentPanel";
-import { SectionLabel } from "../components/ui";
+import { RiskBadge, SectionLabel } from "../components/ui";
 import { DEFAULT_END, DEFAULT_START, SEVERITY_META } from "../config";
 import { useGeolocation } from "../hooks/useGeolocation";
 import { api } from "../services/api";
+import { RISK_STATE_META } from "../config";
 import type {
   Hazard,
   HazardType,
@@ -19,6 +20,16 @@ import type {
 import type { UseFatigue } from "../hooks/useFatigue";
 
 type PickMode = "start" | "end" | "hazard" | null;
+
+// Sleep Drive produces DRIVER risk; the road-safety engine produces ROAD
+// risk. A separate fusion step combines them — Sleep Drive never decides
+// route safety itself. This widget demonstrates the seam with a simple
+// probabilistic OR (a fatigued driver on a dangerous stretch is the worst
+// combination).
+function contextualRisk(driverRisk: number, roadScore: number): number {
+  const roadRisk = Math.max(0, (100 - roadScore) / 100);
+  return 1 - (1 - driverRisk) * (1 - roadRisk);
+}
 
 export function Dashboard({
   onOpenEmergency,
@@ -305,6 +316,71 @@ export function Dashboard({
           )}
         </div>
       </div>
+
+      {/* ── driver awareness · contextual risk fusion ── */}
+      {fatigue.isActive && route && (
+        <div className="absolute right-3 top-20 z-[1050] hidden w-[248px] overflow-hidden rounded-2xl border border-neutral-200 bg-white/95 shadow-2xl backdrop-blur-md lg:block">
+          <div className="flex items-center justify-between border-b border-neutral-100 px-4 py-2.5">
+            <SectionLabel>Driver awareness</SectionLabel>
+            <span
+              className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest ${
+                fatigue.mode === "demo"
+                  ? "bg-amber-50 text-amber-600"
+                  : "bg-emerald-50 text-emerald-600"
+              }`}
+            >
+              {fatigue.mode === "demo" ? "Demo" : "Live"}
+            </span>
+          </div>
+          <div className="px-4 py-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-semibold uppercase tracking-widest text-neutral-400">
+                Engagement
+              </span>
+              <span
+                className="text-xl font-black tabular-nums"
+                style={{ color: RISK_STATE_META[fatigue.driver.state].color }}
+              >
+                {Math.round(fatigue.driver.engagement * 100)}%
+              </span>
+            </div>
+            <div className="mt-2 flex items-center justify-between">
+              <span className="text-[10px] font-semibold uppercase tracking-widest text-neutral-400">
+                Fatigue risk
+              </span>
+              <RiskBadge level={RISK_STATE_META[fatigue.driver.state].riskLabel} />
+            </div>
+            <div className="mt-2 flex items-center justify-between">
+              <span className="text-[10px] font-semibold uppercase tracking-widest text-neutral-400">
+                Road risk
+              </span>
+              <RiskBadge
+                level={route.overall_risk}
+              />
+            </div>
+            <div className="mt-3 border-t border-dashed border-neutral-200 pt-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">
+                  Contextual risk
+                </span>
+                <span
+                  className="rounded-full px-2 py-0.5 text-[10px] font-black"
+                  style={{
+                    backgroundColor: `${RISK_STATE_META[fatigue.driver.state].color}1a`,
+                    color: RISK_STATE_META[fatigue.driver.state].color,
+                  }}
+                >
+                  {Math.round(contextualRisk(fatigue.driver.fatigue_risk, route.overall_score) * 100)}%
+                </span>
+              </div>
+              <p className="mt-1 text-[10px] leading-relaxed text-neutral-400">
+                Combined driver + road risk — a fatigued driver on a dangerous
+                stretch warrants a stronger intervention than either alone.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Mobile Floating Bottom Bar for Booking (Fixed at bottom on small screens) */}
       <div className="fixed inset-x-4 bottom-4 z-[1050] md:hidden space-y-2">

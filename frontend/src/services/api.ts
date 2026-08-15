@@ -1,11 +1,18 @@
 import { API_BASE } from '../config'
 import type {
+  DriverState,
   EmergencyResponse,
-  FatigueState,
+  FatigueChatRequest,
+  FatigueChatResponse,
+  FatigueEventType,
+  FatigueThresholds,
   GeocodeResult,
   Hazard,
   Hospital,
+  LogEntry,
   RouteResponse,
+  TranscribeResponse,
+  TTSResponse,
 } from '../types'
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -55,33 +62,79 @@ export const api = {
     })
   },
 
-  createFatigueSession(thresholds?: Record<string, number>): Promise<FatigueState> {
-    return request<FatigueState>('/fatigue/session', {
+  createFatigueSession(opts?: {
+    mode?: 'live' | 'demo'
+    thresholds?: Record<string, number> | FatigueThresholds
+    language?: string
+  }): Promise<DriverState> {
+    return request<DriverState>('/fatigue/session', {
       method: 'POST',
-      body: JSON.stringify({ driver_name: 'Demo Driver', thresholds }),
+      body: JSON.stringify({
+        driver_name: 'Demo Driver',
+        mode: opts?.mode ?? 'live',
+        thresholds: opts?.thresholds,
+        language: opts?.language ?? 'en-IN',
+      }),
     })
   },
 
   fatigueEvent(event: {
     session_id: string
-    event_type: string
-    latency_seconds?: number
-    response_duration?: number
-    transcript?: string
+    event_type: FatigueEventType
+    latency_ms?: number | null
+    response_duration_ms?: number | null
+    speech_confidence?: number | null
+    speech_rate_wpm?: number | null
+    transcript?: string | null
+    prompt_id?: string | null
+    error_code?: string | null
     simulated?: boolean
-  }): Promise<FatigueState> {
-    return request<FatigueState>('/fatigue/event', {
+  }): Promise<DriverState> {
+    return request<DriverState>('/fatigue/event', {
       method: 'POST',
       body: JSON.stringify(event),
     })
   },
 
-  fatigueChat(opts: {
-    intent: 'question' | 'reply' | 'freeform'
-    session_id?: string
-    messages: { role: string; content: string }[]
-  }): Promise<{ reply: string; source: 'ai' | 'scripted' }> {
-    return request('/fatigue/chat', { method: 'POST', body: JSON.stringify(opts) })
+  getFatigueState(sessionId: string): Promise<DriverState> {
+    return request<DriverState>(`/fatigue/state/${sessionId}`)
+  },
+
+  getFatigueEvents(sessionId: string): Promise<{ session_id: string; events: LogEntry[] }> {
+    return request(`/fatigue/session/${sessionId}/events`)
+  },
+
+  fatigueChat(opts: FatigueChatRequest): Promise<FatigueChatResponse> {
+    return request<FatigueChatResponse>('/fatigue/chat', {
+      method: 'POST',
+      body: JSON.stringify(opts),
+    })
+  },
+
+  /** Sarvam Saaras v3 STT — returns transcript + detected language, or
+   *  source="error" so the caller falls back to browser speech. */
+  fatigueTranscribe(blob: Blob, languageHint = 'auto'): Promise<TranscribeResponse> {
+    const form = new FormData()
+    form.append('file', blob, 'speech.wav')
+    form.append('language_hint', languageHint)
+    return fetch(`${API_BASE}/fatigue/audio/transcribe`, {
+      method: 'POST',
+      body: form,
+    }).then(async (res) => {
+      if (!res.ok) {
+        const body = await res.text().catch(() => '')
+        throw new Error(`API ${res.status}: ${body.slice(0, 200)}`)
+      }
+      return res.json() as Promise<TranscribeResponse>
+    })
+  },
+
+  /** Sarvam Bulbul v3 TTS — base64 audio, or source="browser" fallback. */
+  fatigueTTS(text: string, language: string): Promise<TTSResponse> {
+    return request<TTSResponse>('/fatigue/tts', {
+      method: 'POST',
+      body: JSON.stringify({ text, language }),
+    })
   },
 
   getConfig(): Promise<{

@@ -18,10 +18,10 @@ response always declares whether data is LIVE or DEMO.
 """
 from __future__ import annotations
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.config import RISK_LEVELS, SafetyWeights, settings
+from app.config import RISK_LEVELS, SUPPORTED_LANGUAGES, SafetyWeights, settings
 from app.models import (
     ConfigResponse,
     EmergencyActivateRequest,
@@ -36,6 +36,9 @@ from app.models import (
     Hospital,
     RouteResponse,
     SafetyScoreRequest,
+    TranscribeResponse,
+    TTSRequest,
+    TTSResponse,
 )
 from app.providers.hazards import HazardService
 from app.providers.hospitals import HospitalProvider
@@ -44,7 +47,10 @@ from app.providers.weather import get_weather
 from app.services.ai import assistant_reply
 from app.services.emergency import activate_emergency
 from app.services.fatigue import FatigueEngine
+from app.services.groq import groq_service
+from app.services.intent import classify_intent, merge_intent, target_language_for
 from app.services.safety_engine import SafetyEngine, overall_score
+from app.services.sarvam import sarvam_service
 from app.services.segmentation import segment_route
 
 app = FastAPI(title="RoadSafe AI", version="0.1.0")
@@ -80,6 +86,10 @@ async def get_config() -> ConfigResponse:
         "traffic": "tomtom (live flow)" if settings.has_traffic else "demo (deterministic)",
         "weather": "openweather" if settings.has_weather else "demo (deterministic)",
         "ai": "gemini" if settings.has_ai else "scripted",
+        "groq": settings.groq_chat_model if settings.has_groq else "unavailable",
+        "sarvam_stt": settings.sarvam_stt_model if settings.has_sarvam else "unavailable",
+        "sarvam_tts": settings.sarvam_tts_model if settings.has_sarvam else "unavailable",
+        "languages": str(len(SUPPORTED_LANGUAGES)),
     }
     keys = [k for k, v in {
         "ROUTING_API_KEY": settings.routing_api_key,
@@ -87,6 +97,8 @@ async def get_config() -> ConfigResponse:
         "AI_API_KEY": settings.ai_api_key,
         "TRAFFIC_API_KEY": settings.traffic_api_key,
         "WEATHER_API_KEY": settings.weather_api_key,
+        "GROQ_API_KEY": settings.groq_api_key,
+        "SARVAM_API_KEY": settings.sarvam_api_key,
     }.items() if v]
     return ConfigResponse(
         safety_weights=settings.safety_weights.as_dict(),
@@ -217,7 +229,9 @@ async def hospitals(
 
 @app.post("/api/fatigue/session", response_model=FatigueState)
 async def create_fatigue_session(req: FatigueSessionCreate) -> FatigueState:
-    session = fatigue.create_session(req.driver_name, req.thresholds)
+    session = fatigue.create_session(
+        req.driver_name, req.mode, req.thresholds, language=req.language or None
+    )
     return fatigue.snapshot(session)
 
 
@@ -229,23 +243,230 @@ async def fatigue_event(event: FatigueEvent) -> FatigueState:
     return state
 
 
+@app.get("/api/fatigue/state/{session_id}", response_model=FatigueState)
+async def fatigue_state(session_id: str) -> FatigueState:
+    session = fatigue.get(session_id)
+    if session is None:
+        raise HTTPException(404, "Unknown fatigue session")
+    return fatigue.snapshot(session)
+
+
+@app.get("/api/fatigue/session/{session_id}/events")
+async def fatigue_events(session_id: str) -> dict:
+    session = fatigue.get(session_id)
+    if session is None:
+        raise HTTPException(404, "Unknown fatigue session")
+    return {
+        "session_id": session_id,
+        "events": [e.model_dump() for e in session.events],
+    }
+
+
 @app.post("/api/fatigue/chat", response_model=FatigueChatResponse)
 async def fatigue_chat(req: FatigueChatRequest) -> FatigueChatResponse:
-    session = fatigue.get(req.session_id) if req.session_id else None
-    if req.intent == "question":
-        scripted = fatigue.next_question(session) if session else "How's the drive going?"
-    elif req.intent == "reply":
-        scripted = "Got it — thanks for staying with me. I'll keep checking in."
-    else:
-        scripted = "I'm here to help with road safety. Ask me anything about your route, fatigue, or hazards."
-    reply, source = await assistant_reply(
-        req.intent, req.messages, scripted, req.session_id,
-        escalation_level=session.escalation_level if session else 0,
-        slow_responses=session.slow_responses if session else 0,
-        missed_responses=session.missed_responses if session else 0,
-    )
-    return FatigueChatResponse(reply=reply, source=source)
+    """Bidirectional conversational turn.
 
+    The driver may speak first (driver_text + driver_initiated intent) or the
+    orchestrator may be issuing a proactive prompt (question) or reacting to
+    a reply. The LLM (Groq) decides WHAT to say; the fatigue engine decides
+    driver STATE; deterministic rules here decide whether any ACTION is
+    permitted (never the LLM alone).
+    """
+    session = fatigue.get(req.session_id) if req.session_id else None
+    # The driver's explicit selection (from the UI / manager) wins over the
+    # session's stored value — this is how a mid-session language switch
+    # from the client is honoured without restarting the session.
+    language = req.language or (session.language if session else None) or "en-IN"
+    driver_text = (req.driver_text or "").strip()
+
+    # ----------------------------------------------------------- intent
+    # Deterministic safety rules first; Groq refines; safety-critical intents
+    # (EMERGENCY / FATIGUE_DISCLOSURE) always win.
+    if req.intent == "question":
+        intent = "PROACTIVE_CHECKIN"
+    elif req.intent == "reply":
+        intent = "RESPONSE"
+    else:
+        model_intent = await groq_service.classify_intent(driver_text, language)
+        intent = merge_intent(model_intent, driver_text)
+
+    # -------------------------------------------------- language switching
+    # Natural switching mid-session — never restarts the session.
+    new_language = None
+    if intent == "LANGUAGE_SWITCH" and driver_text:
+        new_language = target_language_for(driver_text)
+    if new_language and session:
+        if new_language != session.language:
+            old = session.language
+            session.language = new_language
+            fatigue.handle_event(
+                FatigueEvent(
+                    session_id=session.session_id,
+                    event_type="language_changed",
+                    language=new_language,
+                    transcript=driver_text,
+                )
+            )
+            language = new_language
+            print(f"[chat] language switched {old} -> {new_language}", flush=True)
+    elif session and language != session.language:
+        session.language = language
+        fatigue.handle_event(
+            FatigueEvent(
+                session_id=session.session_id,
+                event_type="language_changed",
+                language=language,
+            )
+        )
+
+    # --------------------------------------------------------- event log
+    if session and driver_text:
+        fatigue.handle_event(
+            FatigueEvent(
+                session_id=session.session_id,
+                event_type="intent_detected",
+                intent=intent,
+                transcript=driver_text,
+                language=language,
+            )
+        )
+        if req.intent in ("driver_initiated", "freeform") or (req.intent == "reply" and not session.last_question):
+            fatigue.handle_event(
+                FatigueEvent(
+                    session_id=session.session_id,
+                    event_type="driver_initiated",
+                    transcript=driver_text,
+                    language=language,
+                )
+            )
+
+    # ------------------------------------------------------- driver state
+    driver_state = None
+    if session:
+        snap = fatigue.snapshot(session)
+        driver_state = {
+            "state": snap.state,
+            "fatigue_risk": snap.fatigue_risk,
+            "engagement": snap.engagement,
+            "confidence": snap.confidence,
+            "recent_delayed_responses": snap.recent_delayed_responses,
+            "silence_detected": snap.silence_detected,
+            "baseline_latency_ms": snap.baseline_latency_ms,
+        }
+
+    # ------------------------------------------------------------- reply
+    history = req.messages[-12:] or []
+    action: dict | None = None
+
+    # Scripted fallbacks per intent (human, concise — never a robot).
+    scripted = _scripted_for(intent, session, driver_text)
+
+    if req.intent == "question":
+        reply = await groq_service.generate_response(
+            history, driver_state, req.road_context, language, "PROACTIVE_CHECKIN"
+        )
+        source: str = "groq" if reply else "scripted"
+        reply = reply or scripted
+    elif driver_text:
+        reply = await groq_service.generate_response(
+            history, driver_state, req.road_context, language, intent
+        )
+        source = "groq" if reply else "scripted"
+        reply = reply or scripted
+        # The LLM PROPOSES an action; the app decides. Never executed here.
+        action = _action_for(intent)
+    else:
+        reply, source = None, "scripted"
+        reply = "I'm here when you need me."
+
+    if session and source == "groq":
+        fatigue.handle_event(
+            FatigueEvent(
+                session_id=session.session_id,
+                event_type="ai_response_generated",
+                transcript=reply,
+                language=language,
+            )
+        )
+
+    return FatigueChatResponse(
+        reply=reply, source=source, intent=intent, language=language, action=action
+    )
+
+
+def _scripted_for(intent: str, session, driver_text: str) -> str:
+    if not session:
+        return "How's the drive going?"
+    if intent == "PROACTIVE_CHECKIN":
+        return fatigue.next_prompt(session)
+    if intent == "EMERGENCY":
+        return "Okay, I'm getting you help. Emergency services will be contacted — stay on the line with me if you can."
+    if intent == "FATIGUE_DISCLOSURE":
+        return "Your responses have slowed. If you're feeling tired, I'd strongly recommend finding a safe place to stop for a break."
+    if intent == "ROUTE_REQUEST":
+        return "Sure — I'm checking safer alternatives now."
+    if intent == "SAFETY_QUERY":
+        return "I can check the road ahead and compare the risk along your route."
+    if intent == "MUSIC_REQUEST":
+        return "Happy to play something. Want me to put on some music?"
+    if intent == "LANGUAGE_SWITCH":
+        return "Sure — I'll switch."
+    if intent == "RESPONSE":
+        return "Good to hear. I'll keep an eye on things."
+    return "I'm here. Ask me about the road ahead, a safer route, or take a break whenever you need."
+
+
+def _action_for(intent: str) -> dict | None:
+    """Map a classified intent onto a permitted action proposal. The app
+    (frontend policy layer) decides whether/how to execute it."""
+    if intent == "EMERGENCY":
+        return {"type": "emergency"}
+    if intent == "FATIGUE_DISCLOSURE":
+        return {"type": "fatigue_check"}
+    if intent == "ROUTE_REQUEST":
+        return {"type": "route_request"}
+    if intent == "SAFETY_QUERY":
+        return {"type": "safety_info"}
+    if intent == "MUSIC_REQUEST":
+        return {"type": "music_request"}  # frontend runs the consent flow
+    return None
+
+
+@app.post("/api/fatigue/audio/transcribe", response_model=TranscribeResponse)
+async def fatigue_transcribe(
+    file: UploadFile = File(...),
+    language_hint: str = Form("auto"),
+) -> TranscribeResponse:
+    """Sarvam Saaras v3 STT. Any failure returns source="error" so the
+    frontend falls back to browser STT — and NEVER raises fatigue risk."""
+    audio = await file.read()
+    if not audio:
+        return TranscribeResponse(error="empty audio")
+    result = await sarvam_service.transcribe(audio, language_hint=language_hint)
+    if not result:
+        return TranscribeResponse(error="Sarvam STT unavailable — falling back to browser speech recognition")
+    return TranscribeResponse(
+        transcript=result.get("transcript"),
+        language_code=result.get("language_code"),
+        source="sarvam",
+    )
+
+
+@app.post("/api/fatigue/tts", response_model=TTSResponse)
+async def fatigue_tts(req: TTSRequest) -> TTSResponse:
+    """Sarvam Bulbul v3 TTS -> base64 audio. Falls back to browser TTS by
+    returning source="browser" (no audio) — the frontend decides."""
+    if not req.text or not req.text.strip():
+        return TTSResponse(message="empty text")
+    result = await sarvam_service.synthesize(req.text, req.language or "en-IN")
+    if not result:
+        return TTSResponse(source="browser", message="Sarvam TTS unavailable — using browser speech")
+    return TTSResponse(
+        audio_base64=result.get("audio_base64"),
+        format=result.get("format", "wav"),
+        source="sarvam",
+        cached=bool(result.get("cached")),
+    )
 
 # --------------------------------------------------------------------------
 # Emergency

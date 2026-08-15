@@ -60,12 +60,24 @@ class SafetyWeights:
 
 @dataclass
 class FatigueThresholds:
-    """Response-latency thresholds (seconds) used by the fatigue engine.
+    """Response-latency thresholds used by the Sleep Drive state engine.
 
-    0..normal_max          -> normal
-    normal_max..mild_max   -> mild concern
-    mild_max..elevated_max -> elevated concern
-    > elevated_max         -> severe concern
+    Two guards are applied to every response:
+
+    1. ABSOLUTE floors (seconds) — nobody gets a pass just because their
+       personal baseline is fast:
+       0..normal_max          -> normal
+       normal_max..mild_max   -> mild concern
+       mild_max..elevated_max -> elevated concern
+       > elevated_max         -> severe concern
+
+    2. RELATIVE deviation vs. the driver's personal rolling baseline:
+       deviation_ratio = latency / max(baseline, min_baseline_seconds)
+       ratio > slow_ratio       -> noticeably slower than this driver's norm
+       ratio > severe_ratio     -> substantially slower
+
+    The strongest signal wins. Risk is never decided by a single response;
+    the engine temporally aggregates and smooths before changing state.
     """
 
     normal_max: float = 2.0
@@ -73,9 +85,42 @@ class FatigueThresholds:
     elevated_max: float = 7.0
     max_wait_seconds: float = 20.0
     min_response_duration: float = 1.2  # responses shorter than this are "unusually short"
-    slow_before_caution: int = 1        # slow responses before escalation level 1
-    slow_before_elevated: int = 2       # slow responses before escalation level 2
-    missed_before_critical: int = 2     # consecutive missed responses before level 3
+
+    # --- personal baseline ----------------------------------------------
+    baseline_window: int = 6      # rolling window size (number of responses)
+    min_baseline_samples: int = 3  # responses before baseline is trusted
+    min_baseline_seconds: float = 1.0  # floor so a super-fast baseline is not abused
+
+    # --- relative deviation ----------------------------------------------
+    slow_ratio: float = 1.5      # latency >= 1.5x baseline => noticeably slower
+    severe_ratio: float = 2.5    # latency >= 2.5x baseline => substantially slower
+
+    # --- temporal aggregation / hysteresis --------------------------------
+    risk_decay_seconds: float = 120.0  # risk decays back toward 0 over ~2 min
+    adverse_streak_escalate: int = 2   # consecutive adverse signals before escalating
+    good_streak_deescalate: int = 2    # consecutive good responses before improving
+    # risk bands mapping to NORMAL / ATTENTION / ELEVATED / HIGH_CONCERN.
+    # engagement shown in the UI is 1 - risk, so the arc for the demo is
+    # ~95% (NORMAL) -> ~80% (ATTENTION) -> ~55-60% (ELEVATED) -> HIGH.
+    risk_attention: float = 0.18
+    risk_elevated: float = 0.32
+    risk_high: float = 0.50
+
+    # responses scoring above this are excluded from the personal baseline so
+    # a degrading driver's "normal" does not drift upward with the slowdown
+    baseline_max_score: float = 0.35
+
+    # --- conversational orchestration -------------------------------------
+    # Time until the next PROACTIVE prompt, by driver state. Healthy drivers
+    # get long, quiet monitoring periods (the client randomizes within the
+    # min/max range); intervals shorten as risk rises. These are SEPARATE from
+    # response latency — a long gap between prompts never inflates the
+    # prompt-to-response latency measurement.
+    healthy_min_prompt_interval: float = 60.0
+    healthy_max_prompt_interval: float = 120.0
+    attention_prompt_interval: float = 35.0
+    elevated_prompt_interval: float = 20.0
+    critical_prompt_interval: float = 30.0
 
     def as_dict(self) -> dict:
         return asdict(self)
@@ -109,9 +154,33 @@ class Settings:
     # OpenWeather
     openweather_url: str = "https://api.openweathermap.org/data/2.5/weather"
 
-    # Gemini
+    # Gemini (legacy fallback)
     gemini_model: str = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")
     gemini_timeout: float = _env_float("GEMINI_TIMEOUT", 5.0)
+
+    # --- Groq (conversational reasoning + intent classification) ------------
+    # Backend-only: never expose GROQ_API_KEY to the frontend or logs.
+    groq_api_key: str = os.environ.get("GROQ_API_KEY", "")
+    groq_chat_model: str = os.environ.get("GROQ_CHAT_MODEL", "llama-3.3-70b-versatile")
+    groq_url: str = "https://api.groq.com/openai/v1/chat/completions"
+    groq_timeout: float = _env_float("GROQ_TIMEOUT", 6.0)
+
+    # --- Sarvam (speech-to-text + text-to-speech) ---------------------------
+    # Backend-only: never expose SARVAM_API_KEY to the frontend or logs.
+    sarvam_api_key: str = os.environ.get("SARVAM_API_KEY", "")
+    sarvam_stt_model: str = os.environ.get("SARVAM_STT_MODEL", "saaras:v3")
+    sarvam_tts_model: str = os.environ.get("SARVAM_TTS_MODEL", "bulbul:v3")
+    sarvam_tts_voice: str = os.environ.get("SARVAM_TTS_VOICE", "shubh")
+    sarvam_url: str = "https://api.sarvam.ai"
+    sarvam_timeout: float = _env_float("SARVAM_TIMEOUT", 15.0)
+    # Cache deterministic TTS phrases (text+language -> base64 audio) to cut
+    # latency + API spend. Personalized responses are never cached.
+    tts_cache_enabled: bool = True
+
+    # --- Sleep Drive conversation --------------------------------------------
+    # Default conversation language. "auto" lets Sarvam's STT detect the
+    # driver's language per utterance; anything else is a BCP-47 code.
+    default_language: str = os.environ.get("SLEEP_DRIVE_LANGUAGE", "en-IN")
 
     @property
     def has_routing(self) -> bool:
@@ -128,6 +197,14 @@ class Settings:
     @property
     def has_ai(self) -> bool:
         return bool(self.ai_api_key)
+
+    @property
+    def has_groq(self) -> bool:
+        return bool(self.groq_api_key)
+
+    @property
+    def has_sarvam(self) -> bool:
+        return bool(self.sarvam_api_key)
 
     # --- Safety engine -------------------------------------------------------
     safety_weights: SafetyWeights = field(default_factory=SafetyWeights)
@@ -178,4 +255,26 @@ RECOMMENDATIONS = {
     "MODERATE": "Stay alert and maintain a safe following distance.",
     "HIGH": "Use caution, reduce speed, and watch for hazards ahead.",
     "CRITICAL": "Slow down significantly and consider an alternative, safer route.",
+}
+
+# ---------------------------------------------------------------------------
+# Sleep Drive — supported conversation languages (BCP-47 codes)
+# ---------------------------------------------------------------------------
+# "auto" means: let Sarvam STT detect the driver's language per utterance and
+# follow natural switches without restarting the session. The exact set mirrors
+# the 10 Indian languages + Indian English that Sarvam Saaras v3 / Bulbul v3
+# support, so a selection never points at an unsupported TTS/STT voice.
+SUPPORTED_LANGUAGES: dict[str, str] = {
+    "auto": "Auto-detect",
+    "en-IN": "English",
+    "hi-IN": "हिंदी",
+    "ta-IN": "தமிழ்",
+    "te-IN": "తెలుగు",
+    "kn-IN": "ಕನ್ನಡ",
+    "ml-IN": "മലയാളം",
+    "mr-IN": "मराठी",
+    "bn-IN": "বাংলা",
+    "gu-IN": "ગુજરાતી",
+    "pa-IN": "ਪੰਜਾਬੀ",
+    "od-IN": "ଓଡ଼ିଆ",
 }

@@ -16,15 +16,14 @@ function parseHash(): { page: Page; report: boolean } {
 
 export default function App() {
   const [route, setRoute] = useState(() => parseHash());
-  const fatigue = useFatigue();
+  const navigate = useCallback((page: Page) => {
+    window.location.hash = `#/${page}`;
+  }, []);
+  const fatigue = useFatigue(useCallback(() => navigate("emergency"), [navigate]));
   useEffect(() => {
     const onHash = () => setRoute(parseHash());
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
-  }, []);
-
-  const navigate = useCallback((page: Page) => {
-    window.location.hash = `#/${page}`;
   }, []);
 
   const openReportHazard = useCallback(() => {
@@ -54,6 +53,7 @@ export default function App() {
         <Dashboard
           onOpenEmergency={() => navigate("emergency")}
           initialReport={route.report}
+          fatigue={fatigue}
         />
       )}
     </div>

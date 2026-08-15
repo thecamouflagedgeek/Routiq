@@ -1,0 +1,25 @@
+# --- secrets / environment ---
+.env
+.env.*
+!.env.example
+backend/.env
+backend/.env.*
+!backend/.env.example
+
+# --- python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# --- node ---
+node_modules/
+dist/
+build/
+*.tsbuildinfo
+
+# --- misc ---
+.DS_Store
+*.log
+.freebuff/

@@ -1,4 +1,4 @@
-import type { HazardSeverity, HazardType, Place, RiskLevel } from './types'
+import type { DriverRiskState, HazardSeverity, HazardType, Place, RiskLevel } from './types'
 
 export const API_BASE = import.meta.env.VITE_API_URL || '/api'
 
@@ -13,26 +13,80 @@ export const RISK_META: Record<RiskLevel, { color: string; label: string; text: 
 }
 
 // ---------------------------------------------------------------------------
+// Conversation languages (BCP-47) — mirrors backend SUPPORTED_LANGUAGES.
+// "auto" lets Sarvam STT detect the driver's language per utterance and
+// follow natural switches mid-session without restarting.
+// ---------------------------------------------------------------------------
+export const LANGUAGES: { code: string; label: string; native: string }[] = [
+  { code: 'auto', label: 'Auto-detect', native: 'Auto' },
+  { code: 'en-IN', label: 'English', native: 'English' },
+  { code: 'hi-IN', label: 'हिंदी', native: 'Hindi' },
+  { code: 'ta-IN', label: 'தமிழ்', native: 'Tamil' },
+  { code: 'te-IN', label: 'తెలుగు', native: 'Telugu' },
+  { code: 'kn-IN', label: 'ಕನ್ನಡ', native: 'Kannada' },
+  { code: 'ml-IN', label: 'മലയാളം', native: 'Malayalam' },
+  { code: 'mr-IN', label: 'मराठी', native: 'Marathi' },
+  { code: 'bn-IN', label: 'বাংলা', native: 'Bengali' },
+  { code: 'gu-IN', label: 'ગુજરાતી', native: 'Gujarati' },
+  { code: 'pa-IN', label: 'ਪੰਜਾਬੀ', native: 'Punjabi' },
+  { code: 'od-IN', label: 'ଓଡ଼ିଆ', native: 'Odia' },
+]
+
+export function languageLabel(code: string): string {
+  const hit = LANGUAGES.find((l) => l.code === code)
+  if (hit) return hit.label
+  return code
+}
+
+// ---------------------------------------------------------------------------
 // Fatigue thresholds — configurable here (and mirrored to the backend on
-// session creation).
-// normal ≤3s · mild ≤6s · elevated ≤10s · severe >10s · max wait 12s
+// session creation). Mirrors backend/app/config.py::FatigueThresholds.
 // ---------------------------------------------------------------------------
 export const DEFAULT_THRESHOLDS = {
-  normal_max: 3,
-  mild_max: 6,
-  elevated_max: 10,
-  max_wait_seconds: 12,
-  min_response_duration: 0.8,
+  normal_max: 2,
+  mild_max: 4,
+  elevated_max: 7,
+  max_wait_seconds: 20,
+  min_response_duration: 1.2,
+  baseline_window: 6,
+  min_baseline_samples: 3,
+  min_baseline_seconds: 1.0,
+  baseline_max_score: 0.35,
+  slow_ratio: 1.5,
+  severe_ratio: 2.5,
+  risk_decay_seconds: 120,
+  risk_attention: 0.18,
+  risk_elevated: 0.32,
+  risk_high: 0.5,
+  // conversational pacing (seconds) — quiet by default, risk-adaptive.
+  healthy_min_prompt_interval: 60,
+  healthy_max_prompt_interval: 120,
+  attention_prompt_interval: 35,
+  elevated_prompt_interval: 20,
+  critical_prompt_interval: 30,
 }
+
+export type LatencyBandName = 'NORMAL' | 'MILD' | 'ELEVATED' | 'SEVERE'
 
 export function latencyBand(
   latency: number,
   t: typeof DEFAULT_THRESHOLDS,
-): { band: 'NORMAL' | 'MILD' | 'ELEVATED' | 'SEVERE'; color: string; label: string } {
+): { band: LatencyBandName; color: string; label: string } {
   if (latency <= t.normal_max) return { band: 'NORMAL', color: '#22c55e', label: 'Normal response' }
   if (latency <= t.mild_max) return { band: 'MILD', color: '#eab308', label: 'Mild concern' }
   if (latency <= t.elevated_max) return { band: 'ELEVATED', color: '#f97316', label: 'Elevated concern' }
   return { band: 'SEVERE', color: '#ef4444', label: 'Severe concern' }
+}
+
+// Driver-risk state metadata for the Sleep Drive UI.
+export const RISK_STATE_META: Record<
+  DriverRiskState,
+  { color: string; riskLabel: RiskLevel; description: string }
+> = {
+  NORMAL: { color: '#22c55e', riskLabel: 'SAFE', description: 'Responses close to personal baseline' },
+  ATTENTION: { color: '#eab308', riskLabel: 'MODERATE', description: 'One or more responses noticeably slower' },
+  ELEVATED: { color: '#f97316', riskLabel: 'HIGH', description: 'Repeated delays / reduced engagement' },
+  HIGH_CONCERN: { color: '#ef4444', riskLabel: 'CRITICAL', description: 'Repeated severe delays or prolonged non-response' },
 }
 
 // ---------------------------------------------------------------------------

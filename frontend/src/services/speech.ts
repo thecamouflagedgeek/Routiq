@@ -22,7 +22,9 @@ interface SpeechRecognitionLike {
   onerror: ((e: { error: string }) => void) | null
   onresult: ((e: {
     resultIndex: number
-    results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal: boolean }>
+    results: ArrayLike<
+      ArrayLike<{ transcript: string; confidence?: number }> & { isFinal: boolean }
+    >
   }) => void) | null
   onspeechstart: (() => void) | null
   start: () => void
@@ -34,7 +36,7 @@ export function createRecognition(handlers: {
   onStart?: () => void
   onEnd?: () => void
   onSpeechStart?: () => void
-  onResult: (finalTranscript: string, interimTranscript: string) => void
+  onResult: (finalTranscript: string, interimTranscript: string, confidence?: number) => void
   onError?: (error: string) => void
 }): RecognitionHandle {
   const w = window as unknown as {
@@ -60,12 +62,17 @@ export function createRecognition(handlers: {
   rec.onresult = (e) => {
     let final = ''
     let interim = ''
+    let confidence: number | undefined
     for (let i = e.resultIndex; i < e.results.length; i++) {
       const result = e.results[i]
-      if (result.isFinal) final += result[0].transcript
-      else interim += result[0].transcript
+      if (result.isFinal) {
+        final += result[0].transcript
+        confidence = typeof result[0].confidence === 'number' ? result[0].confidence : confidence
+      } else {
+        interim += result[0].transcript
+      }
     }
-    if (final || interim) handlers.onResult(final, interim)
+    if (final || interim) handlers.onResult(final, interim, confidence)
   }
 
   return {
@@ -100,19 +107,46 @@ export function initVoices() {
   }
 }
 
+// Deterministic preference order for natural-sounding voices. We scan for the
+// first available voice matching any pattern (preferring en-US, falling back
+// to any English voice, then to the platform default). These names cover the
+// common natural voices across Chrome (Google), Edge (Microsoft Neural) and
+// macOS (Samantha).
+const VOICE_PREFERENCE: RegExp[] = [
+  /google us english/i,
+  /microsoft aria online \(natural\)/i,
+  /microsoft jenny online \(natural\)/i,
+  /microsoft (aria|jenny|guy|christopher|eric|ana) (online )?\(natural\)/i,
+  /samantha/i,
+  /google uk english/i,
+  /natural/i,
+  /google/i,
+]
+
+function pickVoice(): SpeechSynthesisVoice | null {
+  const en = cachedVoices.filter((v) => v.lang.toLowerCase().startsWith('en'))
+  for (const pattern of VOICE_PREFERENCE) {
+    const hit =
+      en.find((v) => v.lang.toLowerCase() === 'en-us' && pattern.test(v.name)) ||
+      en.find((v) => pattern.test(v.name))
+    if (hit) return hit
+  }
+  return en[0] ?? cachedVoices[0] ?? null
+}
+
 export function speak(text: string, opts?: { rate?: number; pitch?: number; onEnd?: () => void }) {
   if (!('speechSynthesis' in window)) {
     opts?.onEnd?.()
     return false
   }
+  // Short, calm utterances — never a navigation-robot monotone.
+  const clean = text.replace(/[\u2014\u2013]/g, ', ').replace(/\s{2,}/g, ' ').trim()
   window.speechSynthesis.cancel()
-  const utter = new SpeechSynthesisUtterance(text)
-  utter.rate = opts?.rate ?? 1.0
+  const utter = new SpeechSynthesisUtterance(clean)
+  utter.rate = opts?.rate ?? 0.98
   utter.pitch = opts?.pitch ?? 1.0
-  const preferred = cachedVoices.find(
-    (v) => v.lang.startsWith('en') && v.name.toLowerCase().includes('natural'),
-  ) || cachedVoices.find((v) => v.lang.startsWith('en') && v.name.toLowerCase().includes('google'))
-  if (preferred) utter.voice = preferred
+  const voice = pickVoice()
+  if (voice) utter.voice = voice
   utter.onend = () => opts?.onEnd?.()
   window.speechSynthesis.speak(utter)
   return true

@@ -15,9 +15,6 @@ export function BookingCard({ route, loading, onPlanRoute, onShowSegments, expan
   const [showSafetyDetails, setShowSafetyDetails] = useState(false)
 
 
-  // Estimated ride charges matching Uber UI demo aesthetic ($2.50 base + $1.85/km)
-  const estimatedCharges = route ? Math.round(25 + route.distance_km * 18.5) : 229
-
   return (
     <div className="w-[380px] max-w-full rounded-2xl border border-neutral-200/80 bg-white/95 p-4 shadow-[0_20px_50px_-15px_rgba(0,0,0,0.18)] backdrop-blur-md transition-all">
       {/* Top weather & status row */}
