@@ -58,9 +58,13 @@ class HospitalProvider:
             })
         return out
 
-    async def hospitals_near(self, point: Point, limit: int | None = None) -> list[Hospital]:
+    async def hospitals_near(self, point: Point, limit: int | None = None,
+                               radius_km: float | None = None) -> list[Hospital]:
         limit = limit or settings.hospital_limit
         candidates = self._candidates(point, limit)
+        if radius_km:
+            candidates = [h for h in candidates
+                          if haversine_km((h["lat"], h["lon"]), point) <= radius_km]
 
         async def eta(h: dict) -> tuple[float, str]:
             return await get_duration_min((h["lat"], h["lon"]), point)

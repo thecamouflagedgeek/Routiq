@@ -1,0 +1,76 @@
+Report_Year,Period,Rank,Road_Name,Length_km,Deaths_per_Km,SeriousInjuries_per_Km,Deaths_and_Injuries_per_Km,Fatalities_period,SeriousInjuries_period,Pedestrian_deaths,Cyclist_deaths,Motorcycle_rider_pillion_deaths,FourWheeler_occupant_deaths,Total
+2019,2017-2019,1,Ghatkopar Mahul Road,1.36,14,27,41,19,37,,,,,56
+2019,2017-2019,2,Balasaheb Thackeray Flyover,1.1,14,21,35,15,23,,,,,38
+2019,2017-2019,3,Vasantdada Patil Marg,1.3,8,16,25,11,21,,,,,32
+2019,2017-2019,4,Mulund - Airoli Link Road,2.5,7,11,18,17,28,,,,,45
+2019,2017-2019,5,Bandra Kurla Complex Road,3.6,1,15,16,5,54,,,,,59
+2019,2017-2019,6,J.J. Flyover,2.5,6,10,15,14,24,,,,,38
+2019,2017-2019,7,Western Express Highway,25.33,5,9,14,118,228,,,,,346
+2019,2017-2019,8,Sion Panvel Highway,9.1,5,7,12,46,62,,,,,108
+2019,2017-2019,9,Ghatkopar - Mankhurd Link Road,4,4,8,12,14,33,,,,,47
+2019,2017-2019,10,Eastern Express Highway,23.55,2,8,10,57,185,,,,,242
+2019,2017-2019,11,Malad Marve Road,3.7,1,9,10,3,34,,,,,37
+2019,2017-2019,12,Santa Cruz - Chembur Link Road,6.45,3,6,9,20,37,,,,,57
+2019,2017-2019,13,Mathuradas Vasanji Road (Andheri Kurla Road),4.5,2,6,8,7,29,,,,,36
+2019,2017-2019,14,Aarey Colony Road,7.1,1,5,7,8,39,,,,,47
+2019,2017-2019,15,Goregaon Mulund Link Road,6.2,1,5,6,8,32,,,,,40
+2020,2018-2020,1,Ghatkopar - Mahul Road,1.36,12,36,48,16,49,,,,,65
+2020,2018-2020,2,Ghatkopar Flyover,1,10,25,35,10,25,,,,,35
+2020,2018-2020,3,Asha Nagar Road,1.3,9,20,29,12,26,,,,,38
+2020,2018-2020,4,Bandra Kurla Complex Road,3.6,3,20,23,10,73,,,,,83
+2020,2018-2020,5,Western Express Highway,25.33,5,15,20,124,376,,,,,500
+2020,2018-2020,6,General A K Vaidya Marg,2.3,3,13,17,8,30,,,,,38
+2020,2018-2020,7,Sion - Panvel Highway,9.1,5,12,16,43,107,,,,,150
+2020,2018-2020,8,Ramakrishna Chemburkar Marg (Ghatkopar - Mahul Road),2.9,4,10,14,11,30,,,,,41
+2020,2018-2020,9,Eastern Express Highway,23.55,3,10,13,71,227,,,,,298
+2020,2018-2020,10,Malad - Marve Road,3.7,1,11,12,3,42,,,,,45
+2020,2018-2020,11,Ghatkopar - Mankhurd Link Road,4,3,9,11,11,34,,,,,45
+2020,2018-2020,12,Adi Sankaracharya Marg,6.34,2,8,10,14,51,,,,,65
+2020,2018-2020,13,Mathuradas Vasanji Road (Andheri - Kurla Road),4.5,1,8,10,5,38,,,,,43
+2020,2018-2020,14,Lal Bahadur Shastri Marg,21,1,8,9,29,164,,,,,193
+2020,2018-2020,15,Rafi Ahmed Kidwai Marg,5.7,3,6,9,15,36,,,,,51
+2021,2019-2021,1,Dr Babasaheb Ambedkar Marg,1.22,14,68,82,17,83,39,0,46,15,100
+2021,2019-2021,2,NS Road,1,3,35,38,3,35,14,1,19,4,38
+2021,2019-2021,3,Western Express Highway,25.33,5,14,19,135,362,132,7,248,110,497
+2021,2019-2021,4,Ghatkopar - Mankhurd Link Road,4,5,13,18,18,52,28,1,31,10,70
+2021,2019-2021,5,New Link Road,10,3,11,14,25,111,63,0,59,14,136
+2021,2019-2021,6,Eastern Express Highway,23.55,3,9,12,80,213,71,7,152,63,293
+2021,2019-2021,7,Sion Panvel Highway,9.1,2,8,10,19,75,41,0,38,15,94
+2021,2019-2021,8,Bombay Port Trust Road,3.9,3,6,9,11,24,9,0,25,1,35
+2021,2019-2021,9,Swami Vivekanand Road,25,1,7,8,29,176,113,2,67,23,205
+2021,2019-2021,10,Jogeshwari - Vikhroli Link Road,10.6,3,5,8,30,52,30,0,38,14,82
+2021,2019-2021,11,Marve Road,7.72,2,6,8,12,50,22,2,32,6,62
+2021,2019-2021,12,"CST Road, Santacruz East",3.45,1,5,6,4,17,11,0,8,2,21
+2021,2019-2021,13,Lal Bahadur Shastri Marg,21,1,4,5,23,89,66,1,38,7,112
+2021,2019-2021,14,Senapati Bapat Marg,11.2,2,3,5,19,39,25,0,32,1,58
+2021,2019-2021,15,Aarey Colony Road,6.57,1,4,5,4,28,6,1,24,1,32
+2022,2020-2022,1,Dr Babasaheb Ambedkar Marg,1.22,12,41,53,15,50,,,,,65
+2022,2020-2022,2,NS Road,1,3,25,28,3,25,,,,,28
+2022,2020-2022,3,Ghatkopar - Mankhurd Link Road,4,5,12,17,18,47,,,,,65
+2022,2020-2022,4,Western Express Highway,25.33,4,10,14,99,241,,,,,340
+2022,2020-2022,5,Eastern Express Highway,23.55,3,6,9,67,141,,,,,208
+2022,2020-2022,6,New Link Road,10,2,7,9,17,67,,,,,84
+2022,2020-2022,7,Jogeshwari - Vikhroli Link Road,10.6,3,5,8,29,51,,,,,80
+2022,2020-2022,8,Swami Vivekanand Road,25,1,5,6,29,128,,,,,157
+2022,2020-2022,9,Marve Road,7.72,1,5,6,8,40,,,,,48
+2022,2020-2022,10,Bombay Port Trust Road,3.9,2,4,6,9,16,,,,,25
+2022,2020-2022,11,Sion Panvel Highway,9.1,1,4,5,13,39,,,,,52
+2022,2020-2022,12,Senapati Bapat Marg,11.2,2,3,5,17,34,,,,,51
+2022,2020-2022,13,LBS Marg,21,1,3,4,14,72,,,,,86
+2022,2020-2022,14,Santacruz Chembur Link Road,6.45,2,2,4,15,16,,,,,31
+2022,2020-2022,15,Eastern Freeway,16.8,1,2,3,18,32,,,,,50
+2023,2021-2023,1,Dr. Babasaheb Ambedkar Road,1.22,10,35,45,12,43,,,,,55
+2023,2021-2023,2,Ghatkopar - Mankhurd Link Road,4,3,17,20,12,68,,,,,80
+2023,2021-2023,3,Western Express Highway,25.33,4,10,14,102,259,,,,,361
+2023,2021-2023,4,Jogeshwari - Vikhroli Link Road,10.6,3,8,11,29,83,,,,,112
+2023,2021-2023,5,Eastern Express Highway,23.55,3,6,9,64,129,,,,,193
+2023,2021-2023,6,Swami Vivekanand Road,25,1,6,7,19,146,,,,,165
+2023,2021-2023,7,New Link Road,10,1,6,7,8,59,,,,,67
+2023,2021-2023,8,Sion Panvel Highway,9.1,1,6,7,11,53,,,,,64
+2023,2021-2023,9,Senapati Bapat Marg,11,1,4,5,10,41,,,,,51
+2023,2021-2023,10,Andheri Kurla Road,7,0,5,5,3,38,,,,,41
+2023,2021-2023,11,Bandra Kurla Complex Road,3.7,1,4,5,5,16,,,,,21
+2023,2021-2023,12,Santacruz - Chembur Link Road,6.45,1,3,4,5,20,,,,,25
+2023,2021-2023,13,Lal Bahadur Shastri Marg,21,0,3,3,7,71,,,,,78
+2023,2021-2023,14,"Western Express Highway, Service Road",20,0,2,2,5,37,,,,,42
+2023,2021-2023,15,Eastern Freeway,16.8,1,1,2,18,20,,,,,38

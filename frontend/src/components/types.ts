@@ -20,7 +20,7 @@ export interface Hazard {
   lat: number
   lon: number
   description: string
-  source: 'demo' | 'user' | 'dataset'
+  source: 'demo' | 'user'
   reported_at: string
   distance_m?: number | null
 }
@@ -46,33 +46,6 @@ export interface Segment {
   explanation: FactorExplanation[]
   recommendation: string
   hazards: Hazard[]
-  risk_locations: RiskLocationMatch[]
-}
-
-export type RiskLocationSource =
-  | 'HIGH_RISK_CORRIDOR'
-  | 'BLACKSPOT_JUNCTION'
-  | 'PREDICTED_BLACKSPOT'
-
-export const RISK_LOCATION_SOURCE_LABELS: Record<RiskLocationSource, string> = {
-  HIGH_RISK_CORRIDOR: 'High-risk corridor',
-  BLACKSPOT_JUNCTION: 'Blackspot junction',
-  PREDICTED_BLACKSPOT: 'Pedestrian blackspot',
-}
-
-export interface RiskLocationMatch {
-  id: string
-  source: RiskLocationSource
-  type: string
-  name: string
-  latitude: number
-  longitude: number
-  distance_m: number
-  risk_score: number
-  risk_level: RiskLevel
-  accident_count?: number | null
-  period?: string | null
-  detail: string
 }
 
 export interface RouteResponse {

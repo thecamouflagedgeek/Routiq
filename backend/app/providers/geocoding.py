@@ -49,7 +49,8 @@ class GeocodingProvider:
             "limit": 6,
         }
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
+            headers = {"User-Agent": "RoadSafeAI/1.0 (roadsafe@example.com)"}
+            async with httpx.AsyncClient(timeout=self.timeout, headers=headers) as client:
                 resp = await client.get(url, params=params)
                 if resp.status_code != 200:
                     return []

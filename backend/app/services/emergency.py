@@ -28,9 +28,10 @@ def map_link_for(point: Point) -> str:
     return f"https://www.openstreetmap.org/?mlat={lat:.5f}&mlon={lon:.5f}#map=16/{lat:.5f}/{lon:.5f}"
 
 
-async def activate_emergency(point: Point) -> EmergencyResponse:
+async def activate_emergency(point: Point, radius_km: float | None = None) -> EmergencyResponse:
     number, region = emergency_number_for(point)
-    hospitals = await _hospitals.hospitals_near(point)
+    search_radius = radius_km or 15.0  # default search window (km)
+    hospitals = await _hospitals.hospitals_near(point, radius_km=search_radius)
     lat, lon = point
     return EmergencyResponse(
         emergency_number=number,
@@ -42,4 +43,6 @@ async def activate_emergency(point: Point) -> EmergencyResponse:
         map_link=map_link_for(point),
         countdown_seconds=settings.emergency_countdown_seconds,
         hospitals=hospitals,
+        search_radius_km=search_radius,
+        hospitals_source="bundled dataset",
     )

@@ -6,17 +6,20 @@ Endpoints:
     POST /api/config                (override safety weights at runtime)
     GET  /api/route                 (route + per-segment safety scores)
     POST /api/safety-score          (score an arbitrary polyline)
-    GET  /api/hazards               (near a point, demo + user data)
+    GET  /api/hazards               (near a point, user + real dataset data)
     POST /api/hazards               (submit a hazard)
     GET  /api/hospitals             (ranked by road ETA)
     POST /api/fatigue/session       (create a Sleep Drive session)
     POST /api/fatigue/event         (stream conversation events)
-    POST /api/emergency/activate    (hospitals + emergency number + countdown)
+    POST /api/emergency/activate    (dynamic OSM hospitals + emergency number + countdown)
+    GET  /api/emergency/route       (OSRM navigation route to the selected hospital)
 
 No API keys are required to run — every provider has a demo fallback and the
 response always declares whether data is LIVE or DEMO.
 """
 from __future__ import annotations
+
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -26,6 +29,7 @@ from app.models import (
     ConfigResponse,
     EmergencyActivateRequest,
     EmergencyResponse,
+    EmergencyRouteResponse,
     FatigueChatRequest,
     FatigueChatResponse,
     FatigueEvent,
@@ -34,29 +38,40 @@ from app.models import (
     Hazard,
     HazardIn,
     Hospital,
+    RouteAlternative,
     RouteResponse,
     SafetyScoreRequest,
-    RiskFusionRequest,
-    RiskFusionResponse,
 )
 from app.providers.hazards import HazardService
 from app.providers.hospitals import HospitalProvider
-from app.providers.routing import get_route, polyline_length_km
+from app.providers.overpass import HospitalSearchError
+from app.providers.routing import (
+    get_emergency_route,
+    get_route,
+    get_route_alternatives,
+    polyline_length_km,
+)
 from app.providers.weather import get_weather
 from app.services.ai import assistant_reply
 from app.services.emergency import activate_emergency
 from app.services.fatigue import FatigueEngine
 from app.services.safety_engine import SafetyEngine, overall_score
 from app.services.segmentation import segment_route
-from app.services.risk_fusion import (
-    road_risk_score,
-    driver_risk_score,
-    fuse_risk,
-    get_intervention,
-    contextual_level_for_component,
-)
+from app.services.risk_data import RiskDataService
 
-app = FastAPI(title="RoadSafe AI", version="0.1.0")
+# Real Mumbai risk datasets - loaded once, geocoded once, cached to disk.
+risk_data = RiskDataService()
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    # Geocode any dataset names missing from the master coordinates CSV
+    # (network needed only on the very first run; afterwards offline).
+    await risk_data.warm_up()
+    yield
+
+
+app = FastAPI(title="RoadSafe AI", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -67,7 +82,7 @@ app.add_middleware(
 
 hazards_svc = HazardService()
 hospitals_svc = HospitalProvider()
-safety = SafetyEngine()
+safety = SafetyEngine(risk_data=risk_data)
 fatigue = FatigueEngine()
 
 
@@ -84,11 +99,12 @@ async def health() -> dict:
 async def get_config() -> ConfigResponse:
     providers = {
         "routing": "tomtom" if settings.has_routing else "osrm + demo fallback",
-        "hospitals": "bundled dataset + demo fallback",
+        "hospitals": "openstreetmap (overpass)",
         "hazards": "demo layer + user reports",
         "traffic": "tomtom (live flow)" if settings.has_traffic else "demo (deterministic)",
         "weather": "openweather" if settings.has_weather else "demo (deterministic)",
         "ai": "gemini" if settings.has_ai else "scripted",
+        "risk_data": f"mumbai csv datasets ({risk_data.geocoded_count}/{len(risk_data.locations)} geocoded)",
     }
     keys = [k for k, v in {
         "ROUTING_API_KEY": settings.routing_api_key,
@@ -104,6 +120,7 @@ async def get_config() -> ConfigResponse:
         segment_target_meters=settings.segment_target_meters,
         max_segments=settings.max_segments,
         hazard_radius_m=settings.hazard_radius_m,
+        risk_match_radius_m=settings.risk_match_radius_m,
         emergency_countdown_seconds=settings.emergency_countdown_seconds,
         providers=providers,
         api_keys_configured=keys,
@@ -155,6 +172,46 @@ async def route(
     )
 
 
+@app.get("/api/route/alternatives", response_model=list[RouteAlternative])
+async def route_alternatives(
+    start_lat: float = Query(ge=-90, le=90),
+    start_lon: float = Query(ge=-180, le=180),
+    end_lat: float = Query(ge=-90, le=90),
+    end_lon: float = Query(ge=-180, le=180),
+) -> list[RouteAlternative]:
+    """Up to 3 selectable route options (fastest first), each with its own
+    scored, color-coded geometry for the ride bottom sheet + map."""
+    start, end = (start_lat, start_lon), (end_lat, end_lon)
+    raw = await get_route_alternatives(start, end)
+    out: list[RouteAlternative] = []
+    for i, alt in enumerate(raw):
+        geometry = alt["geometry"]
+        if len(geometry) < 2:
+            continue
+        segments_geo = segment_route(geometry)
+        weather = await get_weather(geometry[len(geometry) // 2])
+        segments = await safety.score_route_async(geometry, segments_geo, weather=weather)
+        score, risk, color = overall_score(segments)
+        hazards = hazards_svc.all_hazards(start, settings.hazard_radius_m * 3, limit=40)
+        out.append(RouteAlternative(
+            id=f"alt-{i}",
+            name="Fastest Route" if i == 0 else f"Alt Route {i}",
+            start=start,
+            end=end,
+            distance_km=alt["distance_km"],
+            duration_min=alt["duration_min"],
+            overall_score=score,
+            overall_risk=risk,
+            overall_color=color,
+            source=alt["source"],
+            provider=alt["provider"],
+            geometry=geometry,
+            segments=segments,
+            hazards=hazards,
+        ))
+    return out
+
+
 @app.post("/api/safety-score")
 async def safety_score(req: SafetyScoreRequest) -> RouteResponse:
     geometry = req.geometry
@@ -199,7 +256,13 @@ async def list_hazards(
     radius_m: float = 5000,
     limit: int = 40,
 ) -> list[Hazard]:
-    return hazards_svc.all_hazards((lat, lon), radius_m, limit)
+    """Real hazards only: user-submitted reports + real dataset blackspots.
+    The fabricated demo hazard layer is excluded from this production feed."""
+    user = hazards_svc.all_hazards((lat, lon), radius_m, limit, include_demo=False)
+    dataset = risk_data.hazards_near((lat, lon), radius_m, limit)
+    merged = user + dataset
+    merged.sort(key=lambda h: h.distance_m if h.distance_m is not None else 1e9)
+    return merged[:limit]
 
 
 @app.post("/api/hazards", response_model=Hazard, status_code=201)
@@ -219,75 +282,6 @@ async def hospitals(
 ) -> list[Hospital]:
     return await hospitals_svc.hospitals_near((lat, lon), limit)
 
-
-# --------------------------------------------------------------------------
-# Risk Fusion
-# --------------------------------------------------------------------------
-
-@app.post("/api/risk-fusion", response_model=RiskFusionResponse)
-async def risk_fusion(req: RiskFusionRequest) -> RiskFusionResponse:
-    """
-    Combine the current road segment risk with the active
-    Sleep Drive driver risk.
-
-    The frontend provides:
-        - safety_score: current segment safety score
-        - session_id: active Sleep Drive session
-
-    The backend then:
-        1. Converts safety score into road risk.
-        2. Retrieves the driver's fatigue session.
-        3. Converts fatigue state into driver risk.
-        4. Fuses both risks.
-        5. Generates a contextual intervention.
-    """
-
-    # 1. Convert existing safety score into road risk.
-    road_risk = road_risk_score(req.safety_score)
-
-    # 2. Retrieve the active Sleep Drive session.
-    session = fatigue.get(req.session_id)
-
-    if session is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Unknown fatigue session",
-        )
-
-    # 3. Convert Sleep Drive state into driver risk.
-    driver_risk = driver_risk_score(
-        session.fatigue_confidence,
-        session.escalation_level,
-    )
-
-    # 4. Fuse road risk + driver risk.
-    contextual = fuse_risk(
-        road_risk,
-        driver_risk,
-    )
-
-    # 5. Generate the appropriate intervention.
-    intervention = get_intervention(
-        contextual["score"],
-        road_risk,
-        driver_risk,
-    )
-
-    return RiskFusionResponse(
-        road_risk={
-            "score": road_risk,
-            "level": contextual_level_for_component(road_risk),
-        },
-        driver_risk={
-            "score": driver_risk,
-            "level": contextual_level_for_component(driver_risk),
-        },
-        contextual_risk={
-            "score": contextual["score"],
-            "level": contextual["level"],
-        },
-        intervention=intervention,
-    )
 
 # --------------------------------------------------------------------------
 # Fatigue / Sleep Drive
@@ -327,4 +321,33 @@ async def fatigue_chat(req: FatigueChatRequest) -> FatigueChatResponse:
 
 @app.post("/api/emergency/activate", response_model=EmergencyResponse)
 async def emergency_activate(req: EmergencyActivateRequest) -> EmergencyResponse:
-    return await activate_emergency((req.lat, req.lon))
+    try:
+        return await activate_emergency((req.lat, req.lon), radius_km=req.radius_km)
+    except HospitalSearchError:
+        raise HTTPException(
+            status_code=503,
+            detail="Unable to retrieve nearby hospitals right now.",
+        ) from None
+
+
+@app.get("/api/emergency/route", response_model=EmergencyRouteResponse)
+async def emergency_route(
+    start_lat: float = Query(ge=-90, le=90),
+    start_lon: float = Query(ge=-180, le=180),
+    end_lat: float = Query(ge=-90, le=90),
+    end_lon: float = Query(ge=-180, le=180),
+    hospital_id: str = "",
+) -> EmergencyRouteResponse:
+    start, end = (start_lat, start_lon), (end_lat, end_lon)
+    result = await get_emergency_route(start, end)
+    return EmergencyRouteResponse(
+        source=result["source"],
+        provider=result["provider"],
+        start=start,
+        end=end,
+        distance_km=result["distance_km"],
+        duration_min=result["duration_min"],
+        geometry=result["geometry"],
+        steps=result["steps"],
+        hospital_id=hospital_id,
+    )

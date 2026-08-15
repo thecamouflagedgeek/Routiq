@@ -53,7 +53,7 @@ class HazardIn(BaseModel):
 
 class Hazard(HazardIn):
     id: str
-    source: Literal["demo", "user"] = "user"
+    source: Literal["demo", "user", "dataset"] = "user"
     reported_at: str = Field(default_factory=utcnow)
     distance_m: Optional[float] = None  # set when attached to a segment
 
@@ -84,6 +84,27 @@ class Segment(BaseModel):
     explanation: list[FactorExplanation]
     recommendation: str
     hazards: list[Hazard] = Field(default_factory=list)
+    risk_locations: list["RiskLocationMatch"] = Field(default_factory=list)
+
+
+class RiskLocationMatch(BaseModel):
+    """A real dataset record matched to a route segment.
+
+    All fields come from the three Mumbai CSV datasets; nothing is invented.
+    """
+
+    id: str
+    source: Literal["HIGH_RISK_CORRIDOR", "BLACKSPOT_JUNCTION", "PREDICTED_BLACKSPOT"]
+    type: str  # corridor / junction / blackspot
+    name: str
+    latitude: float
+    longitude: float
+    distance_m: float
+    risk_score: float  # 0-100, normalized within the source dataset (100 = worst)
+    risk_level: str
+    accident_count: Optional[int] = None
+    period: Optional[str] = None
+    detail: str  # real evidence: counts + reporting period
 
 
 class RouteResponse(BaseModel):
@@ -108,44 +129,26 @@ class SafetyScoreRequest(BaseModel):
     name: Optional[str] = None
 
 
-# --------------------------------------------------------------------------
-# Risk Fusion
-# --------------------------------------------------------------------------
+class RouteAlternative(BaseModel):
+    """One selectable route option shown in the ride bottom sheet.
+    Carries its own geometry + scored segments so the map can render it
+    independently (green/yellow/orange/red per segment)."""
 
-class RiskFusionRequest(BaseModel):
-    """
-    Input required to combine road risk and driver risk.
-
-    safety_score comes from the currently active road segment.
-    session_id identifies the active Sleep Drive session.
-    """
-
-    safety_score: float = Field(ge=0, le=100)
-    session_id: str
-
-
-class RiskComponent(BaseModel):
-    """A normalized risk component where higher = more dangerous."""
-
-    score: float
-    level: str
-
-
-class RiskIntervention(BaseModel):
-    """Action recommended by the contextual risk engine."""
-
-    required: bool
-    type: str
-    message: str
-
-
-class RiskFusionResponse(BaseModel):
-    """Combined road + driver + contextual risk."""
-
-    road_risk: RiskComponent
-    driver_risk: RiskComponent
-    contextual_risk: RiskComponent
-    intervention: RiskIntervention
+    id: str
+    name: str
+    start: list[float]
+    end: list[float]
+    distance_km: float
+    duration_min: float
+    overall_score: float
+    overall_risk: str
+    overall_color: str
+    source: Literal["live", "demo"] = "live"
+    provider: str = "osrm"
+    geometry: list[list[float]]  # [lat, lon] pairs
+    segments: list[Segment]
+    hazards: list[Hazard] = Field(default_factory=list)
+    computed_at: str = Field(default_factory=utcnow)
 
 
 # --------------------------------------------------------------------------
@@ -160,15 +163,36 @@ class Hospital(BaseModel):
     lat: float
     lon: float
     distance_km: float
-    eta_min: float
+    # None when no valid driving route exists — never a fabricated value.
+    eta_min: Optional[float] = None
     phone: str = ""
-    source: Literal["live", "demo"] = "demo"
-    eta_source: Literal["live", "estimated"] = "estimated"
+    source: Literal["live", "demo"] = "live"
+    eta_source: Literal["live", "estimated", "unavailable"] = "unavailable"
+
+
+class EmergencyRouteStep(BaseModel):
+    instruction: str
+    distance_m: int
+    name: str = ""
+
+
+class EmergencyRouteResponse(BaseModel):
+    source: Literal["live", "demo"]
+    provider: str
+    start: list[float]
+    end: list[float]
+    distance_km: float
+    duration_min: float
+    geometry: list[list[float]]  # [lat, lon] pairs
+    steps: list[EmergencyRouteStep] = Field(default_factory=list)
+    hospital_id: str = ""
+    computed_at: str = Field(default_factory=utcnow)
 
 
 class EmergencyActivateRequest(BaseModel):
     lat: float
     lon: float
+    radius_km: Optional[float] = None
 
 
 class EmergencyResponse(BaseModel):
@@ -178,6 +202,8 @@ class EmergencyResponse(BaseModel):
     map_link: str
     countdown_seconds: int
     hospitals: list[Hospital]
+    search_radius_km: float
+    hospitals_source: str = "overpass"  # OpenStreetMap / Overpass
     activated_at: str = Field(default_factory=utcnow)
 
 
@@ -258,6 +284,7 @@ class ConfigResponse(BaseModel):
     segment_target_meters: float
     max_segments: int
     hazard_radius_m: float
+    risk_match_radius_m: float
     emergency_countdown_seconds: int
     providers: dict[str, str]  # e.g. {"routing": "osrm", "hospitals": "demo"}
     api_keys_configured: list[str]
