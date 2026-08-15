@@ -15,6 +15,10 @@ from app.providers.base import Point
 from app.services.http import Log
 
 
+class GeoapifyProviderError(RuntimeError):
+    """Geoapify could not complete a live provider request."""
+
+
 class GeoapifyProvider:
     """Geoapify Places + Routing + Matrix."""
 
@@ -26,7 +30,7 @@ class GeoapifyProvider:
         self._timeout = settings.geoapify_timeout
 
     async def find_hospitals(
-        self, point: Point, radius_km: float
+        self, point: Point, radius_km: float, limit: int = 50
     ) -> list[dict]:
         """Find hospitals using Geoapify Places API.
         
@@ -40,7 +44,7 @@ class GeoapifyProvider:
             f"{self._base}/v2/places"
             f"?categories=healthcare.hospital"
             f"&filter=circle:{lon},{lat},{radius_m}"
-            f"&limit=50"
+            f"&limit={max(1, min(limit, 50))}"
             f"&apiKey={self._key}"
         )
         
@@ -64,25 +68,20 @@ class GeoapifyProvider:
                 # Geoapify returns [lon, lat]
                 lon_h, lat_h = coords[0], coords[1]
                 
-                name = (props.get("name") or "").strip()
-                if not name:
-                    name = props.get("address_line1", "Hospital")
-                
-                # Build address from components
-                address_parts = []
-                for key in ["street", "suburb", "city", "postcode"]:
-                    val = (props.get(key) or "").strip()
-                    if val:
-                        address_parts.append(val)
-                address = ", ".join(address_parts) if address_parts else ""
-                
+                # A missing name is genuinely missing: do not turn an address
+                # into a made-up hospital name.
+                name = (props.get("name") or "").strip() or "Hospital"
+                address = (props.get("formatted") or "").strip()
+                contact = props.get("contact") or {}
+                phone = contact.get("phone", "") if isinstance(contact, dict) else ""
+
                 hospitals.append({
-                    "id": f"geoapify-{props.get('place_id', len(hospitals))}",
+                    "id": str(props.get("place_id") or f"geoapify-{len(hospitals)}"),
                     "name": name,
                     "address": address,
                     "lat": round(lat_h, 6),
                     "lon": round(lon_h, 6),
-                    "phone": (props.get("contact") or {}).get("phone", ""),
+                    "phone": phone,
                 })
             
             Log.info("geoapify", f"found {len(hospitals)} hospitals near {lat:.4f},{lon:.4f}")
@@ -90,7 +89,7 @@ class GeoapifyProvider:
             
         except Exception as exc:
             Log.warn("geoapify", f"places query failed: {type(exc).__name__}: {exc}")
-            return []
+            raise GeoapifyProviderError("Geoapify Places is unavailable") from exc
 
     async def route_matrix(
         self, source: Point, destinations: list[Point]
@@ -127,13 +126,19 @@ class GeoapifyProvider:
             # First row = from our single source to all targets
             row = matrix[0]
             result: list[float | None] = []
-            for dur in row:
-                if dur is None or dur < 0:
+            for cell in row:
+                # Geoapify returns matrix cells as {"time": seconds,
+                # "distance": meters}; accept a numeric cell too for
+                # backwards-compatible deployments.
+                dur = cell.get("time") if isinstance(cell, dict) else cell
+                if not isinstance(dur, (int, float)) or dur < 0:
                     result.append(None)
                 else:
                     result.append(dur / 60.0)  # seconds -> minutes
-            
-            return result
+
+            # Preserve source/target alignment even when an upstream response
+            # omits an unreachable target.
+            return (result + [None] * len(destinations))[:len(destinations)]
             
         except Exception as exc:
             Log.warn("geoapify", f"route matrix failed: {type(exc).__name__}: {exc}")

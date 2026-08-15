@@ -276,7 +276,8 @@ class Settings:
     hospital_eta_candidates: int = _env_int("HOSPITAL_ETA_CANDIDATES", 12)
 
     # --- Storage -------------------------------------------------------------
-    data_dir: str = os.environ.get("ROADSAFE_DATA_DIR", os.path.join(os.path.dirname(__file__), "data"))
+    # Path to CSV datasets: backend/app/data/ (default __file__ is in backend/app/config.py)
+    data_dir: str = os.environ.get("ROADSAFE_DATA_DIR", str(Path(__file__).resolve().parent / "data"))
 
     def __post_init__(self) -> None:
         self.safety_weights.validate()

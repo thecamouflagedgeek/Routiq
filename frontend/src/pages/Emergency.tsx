@@ -122,7 +122,7 @@ export function Emergency({ onGoDashboard }: { onGoDashboard: () => void }) {
     }
   }, [geo.position]);
 
-  /** Request the OSRM navigation route to the selected hospital. */
+  /** Request the live navigation route to the selected hospital. */
   const startNavigation = useCallback(
     async (
       loc: { lat: number; lon: number },
@@ -508,9 +508,9 @@ export function Emergency({ onGoDashboard }: { onGoDashboard: () => void }) {
                     >
                       {loadingStep === "location" && "Using GPS coordinates"}
                       {loadingStep === "hospitals" &&
-                        "Querying OpenStreetMap within 15km"}
+                        "Finding hospitals with Geoapify within 15km"}
                       {loadingStep === "routing" &&
-                        "Computing road ETAs via OSRM"}
+                        "Computing live driving ETAs"}
                     </div>
                   </div>
                   <button

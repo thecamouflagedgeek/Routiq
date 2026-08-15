@@ -37,6 +37,11 @@ async function request<T>(path: string, init?: RequestInit, timeoutMs = 20000): 
       throw new Error(`API ${res.status}: ${body.slice(0, 200)}`)
     }
     return res.json() as Promise<T>
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new Error('Request timed out. Please try again.')
+    }
+    throw error
   } finally {
     window.clearTimeout(timer)
   }
@@ -75,14 +80,14 @@ export const api = {
   },
 
   activateEmergency(lat: number, lon: number, radiusKm?: number): Promise<EmergencyResponse> {
-    // PERFORMANCE FIX: 10-second timeout with graceful fallback message
+    // Places and Matrix each honour the backend's 5s Geoapify timeout.
     return request<EmergencyResponse>(
       '/emergency/activate',
       {
         method: 'POST',
         body: JSON.stringify({ lat, lon, radius_km: radiusKm }),
       },
-      10000,
+      15000,
     )
   },
 

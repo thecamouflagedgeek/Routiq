@@ -31,7 +31,9 @@ def map_link_for(point: Point) -> str:
 async def activate_emergency(point: Point, radius_km: float | None = None) -> EmergencyResponse:
     number, region = emergency_number_for(point)
     search_radius = radius_km or 15.0  # default search window (km)
-    hospitals = await _hospitals.hospitals_near(point, radius_km=search_radius)
+    hospitals = await _hospitals.hospitals_near(
+        point, radius_km=search_radius, require_geoapify=True
+    )
     lat, lon = point
     return EmergencyResponse(
         emergency_number=number,
@@ -44,5 +46,5 @@ async def activate_emergency(point: Point, radius_km: float | None = None) -> Em
         countdown_seconds=settings.emergency_countdown_seconds,
         hospitals=hospitals,
         search_radius_km=search_radius,
-        hospitals_source="bundled dataset",
+        hospitals_source="geoapify",
     )

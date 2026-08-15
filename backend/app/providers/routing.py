@@ -430,12 +430,12 @@ async def get_route_alternatives(start: Point, end: Point, max_alts: int = 3) ->
 
 async def get_emergency_route(
     start: Point, end: Point
-) -> dict:
+) -> dict | None:
     """Full navigation route from the driver to the selected hospital.
 
     Returns {"source", "provider", "distance_km", "duration_min",
     "geometry", "steps"}. Uses Geoapify when configured (fastest), then
-    OSRM, then demo fallback."""
+    OSRM. It never fabricates an emergency route."""
     
     # Try Geoapify first if configured
     if settings.has_geoapify:
@@ -467,16 +467,5 @@ async def get_emergency_route(
             "steps": steps,
         }
     
-    # Demo fallback
-    demo = DemoRoutingProvider()
-    geometry = await demo.route(start, end)
-    km = polyline_length_km(geometry)
-    return {
-        "source": "demo",
-        "provider": "demo",
-        "distance_km": round(km, 2),
-        "duration_min": round(km / 40.0 * 60.0, 1),
-        "geometry": geometry,
-        "steps": [],
-    }
+    return None
 

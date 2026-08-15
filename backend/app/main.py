@@ -18,6 +18,7 @@ No API keys are required to run — every provider has a demo fallback and the
 response always declares whether data is LIVE or DEMO.
 """
 from __future__ import annotations
+import os
 import time
 from contextlib import asynccontextmanager
 
@@ -50,7 +51,11 @@ from app.models import (
     TTSResponse,
 )
 from app.providers.hazards import HazardService
-from app.providers.hospitals import HospitalProvider
+from app.providers.hospitals import (
+    HospitalProvider,
+    HospitalProviderUnavailable,
+    NoHospitalsFound,
+)
 from app.providers.overpass import HospitalSearchError
 from app.providers.routing import (
     get_emergency_route,
@@ -124,9 +129,11 @@ async def rate_limit_ai(request: Request, call_next):
             return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
     return await call_next(request)
 
+# CORS configuration — allows production frontend origin from environment variable
+allowed_origins = os.environ.get("FRONTEND_URL", "*").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -713,6 +720,10 @@ async def get_livekit_token(payload: dict | None = None):
 async def emergency_activate(req: EmergencyActivateRequest) -> EmergencyResponse:
     try:
         return await activate_emergency((req.lat, req.lon), radius_km=req.radius_km)
+    except HospitalProviderUnavailable:
+        raise HTTPException(status_code=503, detail="HOSPITAL_PROVIDER_UNAVAILABLE") from None
+    except NoHospitalsFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from None
     except HospitalSearchError:
         raise HTTPException(
             status_code=503,
@@ -730,6 +741,11 @@ async def emergency_route(
 ) -> EmergencyRouteResponse:
     start, end = (start_lat, start_lon), (end_lat, end_lon)
     result = await get_emergency_route(start, end)
+    if result is None:
+        raise HTTPException(
+            status_code=502,
+            detail="Unable to calculate driving route to the selected hospital.",
+        )
     return EmergencyRouteResponse(
         source=result["source"],
         provider=result["provider"],

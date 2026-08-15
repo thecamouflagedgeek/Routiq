@@ -18,6 +18,14 @@ from app.providers.routing import get_osrm_durations_batch, haversine_km
 from app.services.http import Log
 
 
+class HospitalProviderUnavailable(RuntimeError):
+    """Raised when Emergency's required live hospital provider is unavailable."""
+
+
+class NoHospitalsFound(RuntimeError):
+    """Raised when a live emergency search completes with no hospitals."""
+
+
 class HospitalProvider:
     name = "hospitals"
 
@@ -26,6 +34,7 @@ class HospitalProvider:
         point: Point,
         limit: int | None = None,
         radius_km: float | None = None,
+        require_geoapify: bool = False,
     ) -> list[Hospital]:
         """Rank hospitals by real road ETA around `point`.
 
@@ -36,15 +45,30 @@ class HospitalProvider:
         limit = limit or settings.hospital_limit
         radius = radius_km or settings.hospital_search_radius_km
 
-        # Try Geoapify first if configured
+        # Emergency explicitly requires Geoapify. Other existing hospital
+        # consumers retain their Overpass fallback.
+        if require_geoapify and not settings.has_geoapify:
+            raise HospitalProviderUnavailable("HOSPITAL_PROVIDER_UNAVAILABLE")
+
+        # Try Geoapify first if configured.
         if settings.has_geoapify:
-            from app.providers.geoapify import GeoapifyProvider
+            from app.providers.geoapify import GeoapifyProvider, GeoapifyProviderError
             geo = GeoapifyProvider()
-            candidates = await geo.find_hospitals(point, radius)
+            try:
+                candidates = await geo.find_hospitals(
+                    point, radius, limit=settings.hospital_eta_candidates
+                )
+            except GeoapifyProviderError as exc:
+                if require_geoapify:
+                    raise HospitalProviderUnavailable("HOSPITAL_PROVIDER_UNAVAILABLE") from exc
+                candidates = await query_hospitals(point, radius)
             Log.info("hospitals", f"geoapify returned {len(candidates)} candidates")
         else:
             candidates = await query_hospitals(point, radius)
             Log.info("hospitals", f"overpass returned {len(candidates)} candidates")
+
+        if require_geoapify and not candidates:
+            raise NoHospitalsFound(f"No hospitals found within {radius:g} km.")
         
         # Straight-line distance only picks *candidates*; final ranking is road ETA.
         candidates.sort(key=lambda h: haversine_km((h["lat"], h["lon"]), point))
