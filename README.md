@@ -1,250 +1,90 @@
-# 🛡️ RoadSafe AI
+# Routiq 🚗
 
-### Predict risk. Prevent accidents. Respond faster.
+<img src="frontend/public/routiqlogo.png" alt="Routiq logo" width="160" />
 
-**RoadSafe AI** is an AI-powered road safety and mobility platform that combines **road-risk intelligence, conversational driver fatigue detection, and emergency response** into one system.
+Built by Team Deoncodes
 
-Instead of simply helping drivers get from A to B, RoadSafe asks a more important question:
+Part of Devfolio Hackathon
 
-> **"How safe is the journey — and what should we do when something goes wrong?"**
+Routiq is a road-safety intelligence platform that helps drivers understand route risk, detect fatigue early, and respond faster during emergencies.
 
----
-
-## 🚀 What RoadSafe Does
-
-### 🗺️ 1. Explainable Safety Routing
-
-RoadSafe doesn't treat a route as one flat score.
-
-It analyzes the route **segment by segment**, combining available road-risk information to produce a **0–100 Safety Score**.
-
-Routes are visualized using:
-
-**🟢 Safe → 🟡 Moderate → 🟠 High → 🔴 Critical**
-
-Click a risky segment to understand **why** it is risky instead of receiving an unexplained number.
-
-For Mumbai, RoadSafe can incorporate supplied datasets covering:
-
-- High-risk corridors
-- High-risk junctions / blackspots
-- Predicted hidden blackspots
-
-This allows the system to explain:
-
-> **Why is this road risky?**
-
-rather than simply saying:
-
-> **This road is risky.**
+It combines three core layers:
+- safety-aware routing
+- conversational driver fatigue monitoring
+- emergency response assistance
 
 ---
 
-### 💤 2. Sleep Drive — Conversational Fatigue Detection
+## Why this exists
 
-The core USP of RoadSafe is **Sleep Drive**.
+Most navigation tools optimize for travel time. Routiq optimizes for safety and decision support.
 
-> **"Every drowsiness system watches your eyes. Ours talks to you."**
-
-Instead of relying only on camera-based eye detection, RoadSafe uses a conversational loop.
-
-The assistant periodically interacts with the driver and observes:
-
-- Response latency
-- Missed responses
-- Speech/interaction signals
-- Deviation from the driver's normal response baseline
-
-The system maintains an explainable fatigue state:
-
-```text
-NORMAL
-   ↓
-ATTENTION
-   ↓
-ELEVATED
-   ↓
-HIGH CONCERN
-```
-
-Warnings escalate progressively rather than triggering an alarm after a single slow response.
-
-### Conversational intelligence
-
-Sleep Drive combines:
-
-- **Groq** — conversational reasoning and intent classification
-- **Sarvam Saaras v3** — speech-to-text
-- **Sarvam Bulbul v3** — Indian-language text-to-speech
-- **Web Speech API** — browser fallback
-- **LiveKit** — real-time voice transport architecture
-
-The conversation layer and fatigue engine are intentionally separated:
-
-```text
-Conversation
-     ↓
-Speech / Response
-     ↓
-Response Latency
-     ↓
-Fatigue Engine
-     ↓
-Risk State
-     ↓
-Progressive Action
-```
-
-The AI can propose conversational actions, but deterministic safety rules remain in control.
+Instead of only showing a route, it helps users answer:
+- Is this route safe?
+- Why is it risky?
+- Is the driver getting fatigued?
+- What should happen if an emergency occurs?
 
 ---
 
-### 🚨 3. Emergency Response
+## What it does
 
-When an emergency is triggered, RoadSafe uses the driver's **real current location** to initiate an emergency workflow.
+### 1. Explainable route safety
+- Scores routes by risk level
+- Breaks down route safety segment by segment
+- Highlights high-risk corridors, junctions, and blackspots
+- Shows the reason behind a risky section instead of just a number
 
-The system can:
+### 2. Sleep Drive
+- Tracks conversational response patterns
+- Measures response latency and engagement quality
+- Estimates fatigue state from interaction signals
+- Escalates warnings progressively instead of reacting to one event alone
 
-1. Obtain the driver's GPS position
-2. Discover real nearby hospitals dynamically
-3. Rank hospitals using road travel time
-4. Select the fastest reachable option
-5. Display the route on the existing map
-6. Provide navigation information
-7. Share the user's location
-8. Provide emergency calling actions
-
-Hospitals are **not hardcoded**.
-
-The emergency architecture is designed around:
-
-```text
-REAL GPS
-   ↓
-Hospital Discovery
-   ↓
-Road ETA
-   ↓
-Best Hospital
-   ↓
-Navigation Route
-```
-
-A simulated crash mode is included so the entire emergency flow can be demonstrated safely during a hackathon.
+### 3. Emergency response workflow
+- Uses live GPS context
+- Finds nearby hospitals dynamically
+- Ranks them based on driving ETA
+- Shows a route to the best available option
+- Helps accelerate emergency response procedures
 
 ---
 
-# 🧠 How It Works
+## Architecture
 
-At a high level:
+![Routiq architecture diagram](frontend/public/Gemini_Generated_Image_u62b5pu62b5pu62b1.png)
 
-```text
-                 REAL-WORLD DATA
-                       ↓
-              ┌─────────────────┐
-              │   ROADSAFE AI   │
-              │                 │
-              │ Risk Engine     │
-              │ Fatigue Engine  │
-              │ Emergency Engine│
-              └─────────────────┘
-                       ↓
-              SAFETY DECISIONS
-                       ↓
-        ┌──────────────┼──────────────┐
-        ↓              ↓              ↓
-   SAFETY MAP      SLEEP DRIVE     EMERGENCY
-```
-
-### Road Risk
-
-```text
-Road + Hazard + Traffic + Risk Data
-                ↓
-          Risk Fusion
-                ↓
-        Segment Safety Score
-                ↓
-        Explainable Map
-```
-
-### Driver Fatigue
-
-```text
-Driver Voice
-     ↓
-Conversation
-     ↓
-Response Latency
-     ↓
-Personal Baseline
-     ↓
-Fatigue State
-     ↓
-Progressive Escalation
-```
-
-### Emergency
-
-```text
-Emergency Event
-      ↓
-Current GPS
-      ↓
-Nearby Hospitals
-      ↓
-Driving ETA
-      ↓
-Fastest Reachable Hospital
-      ↓
-Navigation + SOS Actions
-```
+This keeps the app split into clean concerns:
+- frontend for interaction and UI
+- backend for logic and orchestration
+- data-driven safety and routing intelligence behind the API
 
 ---
 
-# ✨ Key Features
-
-| Feature | What it does |
-|---|---|
-| **Safety Score** | Rates route segments from 0–100 |
-| **Risk Map** | Displays risk visually from green to red |
-| **Risk Explainability** | Shows why a segment received its score |
-| **Mumbai Risk Intelligence** | Uses high-risk corridor and blackspot datasets |
-| **Sleep Drive** | Detects possible fatigue through conversation |
-| **Personal Baseline** | Adapts to the driver's normal response behavior |
-| **Multilingual Voice** | Supports Indian languages and English |
-| **Emergency SOS** | Activates emergency workflow |
-| **Dynamic Hospitals** | Finds real hospitals around the user |
-| **Road ETA Ranking** | Prioritizes hospitals by driving time |
-| **Navigation** | Displays the emergency route on the map |
-| **Location Sharing** | Shares current emergency location |
-| **Demo Mode** | Allows judges to experience the complete flow |
-
----
-
-# 🛠️ Technology Stack
+## Tech stack
 
 ### Frontend
-
-- React 19
+- React
 - TypeScript
 - Vite
 - Tailwind CSS
-- Leaflet
-- React-Leaflet
-- Lucide Icons
-- Web Speech API
 
 ### Backend
-
 - Python
 - FastAPI
-- Uvicorn
 - Pydantic
-- HTTPX
+
+### Intelligence layer
+- route safety scoring
+- fatigue monitoring logic
+- emergency decision support
+- external AI / voice services when enabled
+
+> The project is designed around core product functionality, not around exposing the underlying third-party resource stack in the user-facing docs.
+
 ---
 
-# 📁 Project Structure
+## Project structure
 
 ```text
 Routiq/
@@ -252,271 +92,88 @@ Routiq/
 │   ├── src/
 │   ├── public/
 │   ├── package.json
-│   └── ...
-│
+│   └── vite.config.ts
 ├── backend/
 │   ├── app/
-│   │   ├── services/
-│   │   ├── providers/
-│   │   ├── data/
-│   │   └── main.py
+│   ├── tests/
 │   ├── requirements.txt
 │   └── .env.example
-│
-└── README.md
+├── README.md
+├── QUICK_START.md
+├── TROUBLESHOOTING.md
+└── ...
 ```
 
 ---
 
-# ⚙️ Getting Started
+## Quick start
 
-## Prerequisites
-
-- Node.js 18+
-- Python 3.13 recommended
-- npm
-
----
-
-## 1. Clone the repository
-
-```bash
-git clone https://github.com/Deon-codes/Routiq.git
-cd Routiq
-```
-
-Switch to the project branch if required:
-
-```bash
-git checkout sleep-drive
-```
-
----
-
-## 2. Backend Setup
+### 1. Backend
 
 ```bash
 cd backend
-```
-
-Create a virtual environment:
-
-### Windows
-
-```powershell
 python -m venv venv
+# Windows
 venv\Scripts\activate
-```
-
-### macOS / Linux
-
-```bash
-python3 -m venv venv
-source venv/bin/activate
-```
-
-Install dependencies:
-
-```bash
+# macOS / Linux
+# source venv/bin/activate
 pip install -r requirements.txt
-```
-
-Create:
-
-```text
-backend/.env
-```
-
-Use `.env.example` as the template.
-
-Start FastAPI:
-
-```bash
 uvicorn app.main:app --reload --port 8000
 ```
 
-API:
-
-```text
-http://localhost:8000
-```
-
-Swagger:
-
-```text
-http://localhost:8000/docs
-```
-
----
-
-## 3. Frontend Setup
-
-Open a second terminal:
+### 2. Frontend
 
 ```bash
 cd frontend
-```
-
-Install dependencies:
-
-```bash
 npm install
-```
-
-Create:
-
-```text
-frontend/.env
-```
-
-For local development:
-
-```env
-VITE_API_URL=http://localhost:8000
-```
-
-Start the frontend:
-
-```bash
 npm run dev
 ```
 
-Open:
+### 3. Local environment
 
-```text
-http://localhost:5173
-```
-
----
-
-# 🔐 Environment Variables
-
-Do not commit real API keys.
-
-### Frontend
+Frontend:
 
 ```env
 VITE_API_URL=http://localhost:8000
 ```
 
-For production:
+Production:
 
 ```env
 VITE_API_URL=https://routiq-o2j2.onrender.com
 ```
 
-### Backend
+---
 
-Use `.env.example` to configure providers such as:
+## Deployment notes
 
-```env
-ROUTING_API_KEY=
-TRAFFIC_API_KEY=
-WEATHER_API_KEY=
-GROQ_API_KEY=
-GEOAPIFY_API_KEY=
-SARVAM_API_KEY=
-LIVEKIT_URL=
-LIVEKIT_API_KEY=
-LIVEKIT_API_SECRET=
-```
-
-Optional providers should not prevent the application from starting unless the specific feature requires them.
+- Backend is intended to run as a FastAPI service
+- Frontend can be deployed separately to Vercel or similar hosting
+- Set the frontend environment value to the deployed backend URL when shipping
 
 ---
 
-# ☁️ Deployment
+## Demo flow
 
-### Backend
-
-The FastAPI backend is deployed as a Render Web Service.
-
-Production start command:
-
-```bash
-uvicorn app.main:app --host 0.0.0.0 --port $PORT
-```
-
-Current backend:
-
-```text
-https://routiq-o2j2.onrender.com
-```
-
-### Frontend
-
-The React/Vite frontend can be deployed to Vercel.
-
-Production environment variable:
-
-```env
-VITE_API_URL=https://routiq-o2j2.onrender.com
-```
-
-The frontend communicates with the deployed FastAPI backend through the same REST API used during local development.
+1. Open the app and select a route
+2. View segment-wise safety risk on the map
+3. Start Sleep Drive and observe conversational fatigue signals
+4. Trigger the emergency flow
+5. Review nearby hospital options and route guidance
 
 ---
 
-# 🧪 Demo Flow
+## Team
 
-The recommended hackathon demonstration is:
+Built by Team Deoncodes
 
-### 1. Safety Routing
-
-```text
-Enter:
-Malad → Bandra
-```
-
-RoadSafe:
-
-- Finds the actual route
-- Segments the route
-- Calculates safety
-- Colors the route
-- Explains risky sections
-
-### 2. Sleep Drive
-
-Open **Drive**:
-
-```text
-Start Sleep Drive
-        ↓
-Assistant asks a question
-        ↓
-Driver responds
-        ↓
-Response latency measured
-        ↓
-Delayed responses demonstrated
-        ↓
-Fatigue state escalates
-```
-
-### 3. Emergency
-
-Open **Emergency**:
-
-```text
-Simulate Crash
-      ↓
-60-second confirmation
-      ↓
-Activate Emergency
-      ↓
-Get current GPS
-      ↓
-Find real nearby hospitals
-      ↓
-Rank by driving ETA
-      ↓
-Select fastest reachable hospital
-      ↓
-Display route
-```
+Part of the Devfolio Hackathon
 
 ---
+
+## License
+
+Project-specific license terms can be added here if required by the hackathon or team usage policy.
 
 # 🧭 Design Philosophy
 
