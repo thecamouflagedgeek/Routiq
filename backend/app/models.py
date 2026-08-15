@@ -109,6 +109,46 @@ class SafetyScoreRequest(BaseModel):
 
 
 # --------------------------------------------------------------------------
+# Risk Fusion
+# --------------------------------------------------------------------------
+
+class RiskFusionRequest(BaseModel):
+    """
+    Input required to combine road risk and driver risk.
+
+    safety_score comes from the currently active road segment.
+    session_id identifies the active Sleep Drive session.
+    """
+
+    safety_score: float = Field(ge=0, le=100)
+    session_id: str
+
+
+class RiskComponent(BaseModel):
+    """A normalized risk component where higher = more dangerous."""
+
+    score: float
+    level: str
+
+
+class RiskIntervention(BaseModel):
+    """Action recommended by the contextual risk engine."""
+
+    required: bool
+    type: str
+    message: str
+
+
+class RiskFusionResponse(BaseModel):
+    """Combined road + driver + contextual risk."""
+
+    road_risk: RiskComponent
+    driver_risk: RiskComponent
+    contextual_risk: RiskComponent
+    intervention: RiskIntervention
+
+
+# --------------------------------------------------------------------------
 # Hospitals & emergency
 # --------------------------------------------------------------------------
 

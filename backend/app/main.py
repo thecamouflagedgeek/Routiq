@@ -42,6 +42,8 @@ from app.models import (
     TranscribeResponse,
     TTSRequest,
     TTSResponse,
+    RiskFusionRequest,
+    RiskFusionResponse,
 )
 from app.providers.hazards import HazardService
 from app.providers.hospitals import HospitalProvider
@@ -58,6 +60,13 @@ from app.services.rate_limit import RateLimiter
 from app.services.safety_engine import SafetyEngine, overall_score
 from app.services.sarvam import sarvam_service
 from app.services.segmentation import segment_route
+from app.services.risk_fusion import (
+    road_risk_score,
+    driver_risk_score,
+    fuse_risk,
+    get_intervention,
+    contextual_level_for_component,
+)
 
 app = FastAPI(title="RoadSafe AI", version="0.1.0")
 
@@ -293,6 +302,75 @@ async def hospitals(
 ) -> list[Hospital]:
     return await hospitals_svc.hospitals_near((lat, lon), limit)
 
+
+# --------------------------------------------------------------------------
+# Risk Fusion
+# --------------------------------------------------------------------------
+
+@app.post("/api/risk-fusion", response_model=RiskFusionResponse)
+async def risk_fusion(req: RiskFusionRequest) -> RiskFusionResponse:
+    """
+    Combine the current road segment risk with the active
+    Sleep Drive driver risk.
+
+    The frontend provides:
+        - safety_score: current segment safety score
+        - session_id: active Sleep Drive session
+
+    The backend then:
+        1. Converts safety score into road risk.
+        2. Retrieves the driver's fatigue session.
+        3. Converts fatigue state into driver risk.
+        4. Fuses both risks.
+        5. Generates a contextual intervention.
+    """
+
+    # 1. Convert existing safety score into road risk.
+    road_risk = road_risk_score(req.safety_score)
+
+    # 2. Retrieve the active Sleep Drive session.
+    session = fatigue.get(req.session_id)
+
+    if session is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Unknown fatigue session",
+        )
+
+    # 3. Convert Sleep Drive state into driver risk.
+    driver_risk = driver_risk_score(
+        session.fatigue_confidence,
+        session.escalation_level,
+    )
+
+    # 4. Fuse road risk + driver risk.
+    contextual = fuse_risk(
+        road_risk,
+        driver_risk,
+    )
+
+    # 5. Generate the appropriate intervention.
+    intervention = get_intervention(
+        contextual["score"],
+        road_risk,
+        driver_risk,
+    )
+
+    return RiskFusionResponse(
+        road_risk={
+            "score": road_risk,
+            "level": contextual_level_for_component(road_risk),
+        },
+        driver_risk={
+            "score": driver_risk,
+            "level": contextual_level_for_component(driver_risk),
+        },
+        contextual_risk={
+            "score": contextual["score"],
+            "level": contextual["level"],
+        },
+        intervention=intervention,
+    )
 
 # --------------------------------------------------------------------------
 # Fatigue / Sleep Drive
