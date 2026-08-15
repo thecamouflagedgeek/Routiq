@@ -129,11 +129,20 @@ async def rate_limit_ai(request: Request, call_next):
             return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
     return await call_next(request)
 
-# CORS configuration — allows production frontend origin from environment variable
-allowed_origins = os.environ.get("FRONTEND_URL", "*").split(",")
+# CORS configuration — allow local Vite dev and the deployed frontend origin.
+# Example Render env: FRONTEND_URL=https://your-project.vercel.app
+allowed_origins = [
+    origin.strip()
+    for origin in (
+        os.environ.get("FRONTEND_URL", "")
+        + ",http://localhost:5173,http://127.0.0.1:5173,https://routiq-o2j2.onrender.com"
+    ).split(",")
+    if origin.strip()
+]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )

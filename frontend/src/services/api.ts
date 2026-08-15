@@ -26,8 +26,9 @@ async function request<T>(path: string, init?: RequestInit, timeoutMs = 20000): 
   const controller = new AbortController()
   const timer = window.setTimeout(() => controller.abort(), timeoutMs)
   const signal = init?.signal ? init.signal : controller.signal
+  const url = `${API_BASE}${path.startsWith('/api') ? path : `/api${path}`}`
   try {
-    const res = await fetch(`${API_BASE}${path}`, {
+    const res = await fetch(url, {
       headers: { 'Content-Type': 'application/json' },
       ...init,
       signal,
