@@ -56,10 +56,10 @@ export function SleepDrive({ onGoEmergency }: { onGoEmergency: () => void }) {
 
   return (
     <div
-      className="flex h-screen max-h-screen overflow-hidden flex-col pt-14 pb-20 px-3 sm:px-6 transition-colors"
+      className="min-h-screen lg:h-screen lg:max-h-screen flex flex-col pt-16 sm:pt-20 pb-24 px-3 sm:px-6 transition-colors overflow-y-auto lg:overflow-hidden"
       style={{ background: 'var(--bg)', color: 'var(--text)' }}
     >
-      <div className="mx-auto w-full max-w-7xl flex-1 flex flex-col gap-3 min-h-0 overflow-hidden">
+      <div className="mx-auto w-full max-w-7xl flex-1 flex flex-col gap-3 min-h-0 overflow-y-auto lg:overflow-hidden">
 
         {/* ── Active Session Banner ── */}
         {f.phase !== 'idle' && (
@@ -78,8 +78,8 @@ export function SleepDrive({ onGoEmergency }: { onGoEmergency: () => void }) {
           </div>
         )}
 
-        {/* ── Main Layout Grid (Fits inside Viewport) ── */}
-        <div className="grid w-full flex-1 gap-4 lg:grid-cols-12 items-stretch min-h-0 overflow-hidden">
+        {/* ── Main Layout Grid ── */}
+        <div className="grid w-full flex-1 gap-4 lg:grid-cols-12 items-stretch min-h-0 overflow-y-auto lg:overflow-hidden">
 
           {/* ────────────── CONVERSATION MAIN COLUMN (7 cols) ────────────── */}
           <section

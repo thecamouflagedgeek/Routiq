@@ -48,7 +48,7 @@ export function BookingCard({ route, loading, onPlanRoute, onShowSegments, expan
 
       {/* Stats row */}
       <div
-        className="flex items-center justify-between gap-3 rounded-xl p-3"
+        className="grid grid-cols-2 gap-3 rounded-xl p-3"
         style={{ background: 'var(--bg-2)', border: '1px solid var(--border-2)' }}
       >
         <div>
@@ -59,13 +59,13 @@ export function BookingCard({ route, loading, onPlanRoute, onShowSegments, expan
         </div>
 
         <div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center justify-between">
             <span className="text-[10px] font-extrabold uppercase tracking-widest" style={{ color: 'var(--text-4)' }}>
               {showSafetyDetails ? 'Safety' : 'Time'}
             </span>
             <button
               onClick={() => setShowSafetyDetails((v) => !v)}
-              className="text-[9px] font-bold cursor-pointer"
+              className="text-[9px] font-bold cursor-pointer hover:underline"
               style={{ color: 'var(--orange)' }}
             >
               {showSafetyDetails ? '← Time' : 'Safety →'}
@@ -73,7 +73,7 @@ export function BookingCard({ route, loading, onPlanRoute, onShowSegments, expan
           </div>
           <div className="mt-0.5 text-lg font-black" style={{ color: 'var(--text)' }}>
             {showSafetyDetails && route ? (
-              <span className="flex items-center gap-1" style={{ color: '#22c55e' }}>
+              <span className="flex items-center gap-1 text-emerald-500">
                 <ShieldCheck size={14} /> {route.overall_score}/100
               </span>
             ) : (
@@ -81,15 +81,6 @@ export function BookingCard({ route, loading, onPlanRoute, onShowSegments, expan
             )}
           </div>
         </div>
-
-        <button
-          onClick={route ? onShowSegments : onPlanRoute}
-          disabled={loading}
-          className="cursor-pointer rounded-xl px-4 py-2.5 text-xs font-black tracking-wide shadow-md transition-all hover:opacity-90 active:scale-95 disabled:opacity-60"
-          style={{ background: 'var(--text)', color: 'var(--bg)' }}
-        >
-          {loading ? <Loader2 size={16} className="animate-spin" /> : 'SEGMENTS'}
-        </button>
       </div>
 
       {/* Footer */}

@@ -191,12 +191,11 @@ export function Dashboard({
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════════
-          LEFT PANEL — pre-drive planning / demo controls
-          Shown when NOT simulating
+          LEFT PANEL — Desktop pre-drive planning / demo controls
       ═══════════════════════════════════════════════════════════════════ */}
       {!isSimulating && sim.phase !== 'finished' && (
         <div
-          className="pointer-events-auto absolute inset-x-0 top-0 z-[1050] overflow-y-auto overflow-x-hidden scrollbar-hide p-3 md:inset-y-0 md:left-0 md:w-[380px] md:p-4 md:pt-4"
+          className="pointer-events-auto hidden md:block absolute inset-y-0 left-0 z-[1050] w-[380px] overflow-y-auto overflow-x-hidden scrollbar-hide p-4 pt-4"
           style={{
             background: 'var(--surface)',
             borderRight: '1px solid var(--border)',
@@ -217,19 +216,6 @@ export function Dashboard({
               <p className="mt-1.5 text-xs font-medium leading-relaxed" style={{ color: 'var(--text-3)' }}>
                 Segment-level safety scores. Real-time driver monitoring. Contextual risk fusion.
               </p>
-
-              {/* Glowing visual Graphic Box (Orb/Waveform) */}
-              <div className="relative mt-3 h-36 w-full overflow-hidden rounded-xl bg-neutral-950 flex items-center justify-center border border-neutral-800 shadow-inner">
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-fuchsia-600/30 via-rose-600/10 to-transparent animate-pulse" />
-                <div className="relative flex items-center justify-center">
-                  <div className="absolute h-28 w-28 rounded-full border border-fuchsia-500/20 animate-[ping_3s_linear_infinite]" />
-                  <div className="absolute h-20 w-20 rounded-full border border-rose-500/30 animate-[spin_8s_linear_infinite]" />
-                  <div className="absolute h-14 w-14 rounded-full border border-orange-500/40" />
-                  <div className="h-10 w-10 rounded-full bg-gradient-to-tr from-rose-500 via-purple-500 to-indigo-500 shadow-[0_0_20px_rgba(236,72,153,0.8)] animate-pulse flex items-center justify-center">
-                    <div className="h-3.5 w-3.5 rounded-full bg-white/90 shadow-inner" />
-                  </div>
-                </div>
-              </div>
             </div>
 
             {/* 2. START DEMO DRIVE Button */}
@@ -246,15 +232,13 @@ export function Dashboard({
             )}
 
             {/* 3. Booking / Route Stats Card */}
-            <div className="hidden md:block">
-              <BookingCard
-                route={route}
-                loading={loading}
-                onPlanRoute={() => start && end && loadRoute(start, end)}
-                onShowSegments={() => { setShowList((v) => !v); setSelected(null) }}
-                expanded={showList}
-              />
-            </div>
+            <BookingCard
+              route={route}
+              loading={loading}
+              onPlanRoute={() => start && end && loadRoute(start, end)}
+              onShowSegments={() => { setShowList((v) => !v); setSelected(null) }}
+              expanded={showList}
+            />
 
             {/* 4. Location Pickers */}
             <div
@@ -286,7 +270,7 @@ export function Dashboard({
             {/* 5. Live Road Hazards Widget */}
             {hazards.length > 0 && (
               <div
-                className="hidden md:block rounded-2xl p-3"
+                className="rounded-2xl p-3"
                 style={{ background: 'var(--bg-2)', border: '1px solid var(--border)' }}
               >
                 <div className="mb-2 flex items-center justify-between">
@@ -318,6 +302,94 @@ export function Dashboard({
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════
+          MOBILE PRE-DRIVE FLOATING CARD SHEET (Uber App Style)
+      ═══════════════════════════════════════════════════════════════════ */}
+      {!isSimulating && sim.phase !== 'finished' && (
+        <div className="fixed inset-x-3 bottom-[74px] z-[1050] md:hidden max-h-[60vh] overflow-y-auto space-y-2.5 p-1 rounded-3xl backdrop-blur-lg">
+          
+          {/* Location Pickers Card */}
+          <div
+            className="rounded-2xl p-3 shadow-md border"
+            style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
+          >
+            <div className="space-y-2">
+              <PlaceAutocomplete
+                value={start}
+                placeholder="Start — e.g. Bandra West"
+                variant="start"
+                onSelect={(p) => { setStart(p); if (end) loadRoute(p, end) }}
+                onUseMyLocation={() => useMyLocationForPlace('start')}
+                onPickOnMap={() => setPickMode('start')}
+                picking={pickMode === 'start'}
+              />
+              <PlaceAutocomplete
+                value={end}
+                placeholder="Destination — e.g. Malad West"
+                variant="end"
+                onSelect={(p) => { setEnd(p); if (start) loadRoute(start, p) }}
+                onUseMyLocation={() => useMyLocationForPlace('end')}
+                onPickOnMap={() => setPickMode('end')}
+                picking={pickMode === 'end'}
+              />
+            </div>
+          </div>
+
+          {/* Route Booking Stats Card */}
+          <BookingCard
+            route={route}
+            loading={loading}
+            onPlanRoute={() => start && end && loadRoute(start, end)}
+            onShowSegments={() => { setShowList((v) => !v); setSelected(null) }}
+            expanded={showList}
+          />
+
+          {/* START DEMO DRIVE Button */}
+          {route && (
+            <button
+              onClick={handleStartDemo}
+              disabled={loading}
+              className="flex w-full cursor-pointer items-center justify-center gap-2.5 rounded-2xl py-3.5 text-xs font-black text-white shadow-xl transition-all active:scale-95"
+              style={{ background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)' }}
+            >
+              <Play size={14} fill="white" /> START DEMO DRIVE
+            </button>
+          )}
+
+          {/* Live Road Hazards Card */}
+          {hazards.length > 0 && (
+            <div
+              className="rounded-2xl p-3 shadow-md border"
+              style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
+            >
+              <div className="mb-2 flex items-center justify-between">
+                <SectionLabel>Live road hazards</SectionLabel>
+                <button
+                  onClick={() => openHazardForm()}
+                  className="flex cursor-pointer items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold transition-colors"
+                  style={{ background: 'var(--bg-2)', color: 'var(--text-2)', border: '1px solid var(--border)' }}
+                >
+                  <Plus size={12} /> Report
+                </button>
+              </div>
+              <ul className="space-y-1.5">
+                {hazards.slice(0, 3).map((h) => (
+                  <li key={h.id} className="flex items-center justify-between gap-2 text-xs">
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: SEVERITY_META[h.severity].color }} />
+                      <span className="truncate font-semibold" style={{ color: 'var(--text)' }}>{h.description}</span>
+                    </span>
+                    <span className="shrink-0 text-[10px] font-medium" style={{ color: 'var(--text-4)' }}>
+                      {h.distance_m != null ? `${Math.round(h.distance_m)} m` : ''}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
 
@@ -419,37 +491,6 @@ export function Dashboard({
               </button>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* ═══════════════════════════════════════════════════════════════════
-          Mobile bottom bar (pre-drive only)
-      ═══════════════════════════════════════════════════════════════════ */}
-      {!isSimulating && sim.phase !== 'finished' && (
-        <div className="fixed inset-x-4 bottom-4 z-[1050] md:hidden space-y-2">
-          <BookingCard
-            route={route}
-            loading={loading}
-            onPlanRoute={() => start && end && loadRoute(start, end)}
-            onShowSegments={() => { setShowList((v) => !v); setSelected(null) }}
-            expanded={showList}
-          />
-          {route && (
-            <button
-              onClick={handleStartDemo}
-              className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl py-3 text-sm font-black text-white shadow-xl"
-              style={{ background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)' }}
-            >
-              <Play size={14} fill="white" /> START DEMO DRIVE
-            </button>
-          )}
-          <button
-            onClick={onOpenEmergency}
-            className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-black text-white shadow-lg cursor-pointer"
-            style={{ background: '#dc2626' }}
-          >
-            🚨 SOS Emergency
-          </button>
         </div>
       )}
 

@@ -80,10 +80,10 @@ export function Emergency({ onGoDashboard }: { onGoDashboard: () => void }) {
 
   return (
     <div
-      className="min-h-screen pb-28 transition-colors"
+      className="min-h-screen pb-28 transition-colors overflow-y-auto"
       style={{ background: 'var(--bg)', color: 'var(--text)' }}
     >
-      <div className="mx-auto pt-24 sm:pt-28 max-w-6xl px-4">
+      <div className="mx-auto pt-16 sm:pt-24 max-w-6xl px-4">
 
         {/* Header */}
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -126,7 +126,7 @@ export function Emergency({ onGoDashboard }: { onGoDashboard: () => void }) {
 
           {/* Map */}
           <div
-            className="relative h-[400px] overflow-hidden rounded-2xl border shadow-sm lg:h-[520px]"
+            className="relative h-[260px] sm:h-[400px] lg:h-[520px] overflow-hidden rounded-2xl border shadow-sm"
             style={{ borderColor: 'var(--border)' }}
           >
             <MapView
