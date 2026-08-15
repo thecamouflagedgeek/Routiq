@@ -4,13 +4,7 @@ import { MapContainer, Marker, Polyline, TileLayer, useMap, useMapEvents } from 
 import { Crosshair, Maximize2, Minimize2, Siren } from 'lucide-react'
 import { DEFAULT_MAP_CENTER, DEFAULT_ZOOM } from '../../config'
 import type { EmergencyRoute, Hazard, Hospital, RouteResponse, Segment } from '../../types'
-import {
-  endIcon,
-  HazardMarker,
-  HospitalMarker,
-  startIcon,
-  userLocationIcon,
-} from './Markers'
+import { endIcon, HospitalMarker, startIcon, userLocationIcon } from './Markers'
 
 interface MapViewProps {
   route?: RouteResponse | null
@@ -134,7 +128,7 @@ function MapControls({
 }) {
   const map = useMap()
   return (
-    <div className="absolute bottom-4 right-3 z-[1000] flex flex-col gap-2">
+    <div className="absolute bottom-24 right-3 z-[1000] flex flex-col gap-2 sm:bottom-4">
       <button
         className="map-btn"
         title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen map'}
@@ -155,7 +149,6 @@ function MapControls({
 
 export function MapView({
   route,
-  hazards,
   hospitals,
   showHospitals = false,
   userLocation,
@@ -207,10 +200,6 @@ export function MapView({
       {userLocation && (
         <Marker position={[userLocation.lat, userLocation.lon]} icon={userLocationIcon()} />
       )}
-
-      {hazards?.map((h) => (
-        <HazardMarker key={h.id} hazard={h} />
-      ))}
 
       {emergencyRoute && (
         <EmergencyRouteLayer route={emergencyRoute} destinationName={emergencyDestinationName} />

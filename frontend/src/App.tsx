@@ -38,12 +38,7 @@ export default function App() {
 
       {route.page === 'emergency' && <Emergency onGoDashboard={() => navigate('dashboard')} />}
 
-      {route.page === 'dashboard' && (
-        <Dashboard
-          onOpenEmergency={() => navigate('emergency')}
-          initialReport={route.report}
-        />
-      )}
+      {route.page === 'dashboard' && <Dashboard initialReport={route.report} />}
     </div>
   )
 }
