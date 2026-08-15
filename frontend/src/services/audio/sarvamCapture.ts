@@ -147,7 +147,12 @@ export class SarvamVadCapture {
     this.totalSamples += data.length
     const cap = (ROLLING_CAP_MS / 1000) * 16000
     while (this.totalSamples - this.chunks[0].at > cap) {
-      this.totalSamples -= this.chunks.shift()!.data.length
+      // Evict the oldest chunk WITHOUT touching totalSamples: chunk `at`
+      // positions are absolute, so totalSamples must stay the true stream
+      // end. Decrementing it here made the next chunk's `at` overlap the
+      // retained tail, so collect() could write past the end of its buffer
+      // (RangeError: offset is out of bounds) and kill the fallback STT.
+      this.chunks.shift()
     }
   }
 

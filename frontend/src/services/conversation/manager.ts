@@ -46,6 +46,24 @@
  *    diagnostics to surface "Voice response unavailable. Please try
  *    again.") and returns the turn to LISTENING without producing any
  *    audio. speakBrowser() has been removed — it has no remaining caller.
+ *
+ * 3. start() fired the FIRST question on a fixed 800ms timer after calling
+ *    speakText(INTRO) — not after the intro TTS completed. The intro and
+ *    first-question TTS requests were therefore in flight concurrently and
+ *    could resolve out of order; when the question's audio enqueued and
+ *    finished first, the response countdown (questionStartRef) began while
+ *    the driver was still hearing the intro (the first Sarvam response).
+ *    Fix: the first question is now issued from speakText(INTRO)'s
+ *    onComplete, so the countdown can never begin until the first Sarvam
+ *    response has finished speaking.
+ *
+ * 4. MULTILINGUAL ONBOARDING: start() now opens with a language-selection
+ *    step (askLanguage -> issuePrompt). The driver's reply is matched with
+ *    detectLanguage (English name or native script), confirmed in the NEW
+ *    language, and only then does the localized intro + first check-in
+ *    begin. Silence on the language step is NOT a fatigue signal (it falls
+ *    back after max_wait), and unrecognized replies re-ask at most 3 times
+ *    before falling back — the session can never wedge on onboarding.
  */
 import { api } from '../api'
 import type { AudioTransport } from '../audio/transport'
@@ -57,9 +75,13 @@ import { latencyBand } from '../../config'
 import {
   classifyIntentClient,
   classifyMusicIntent,
-  INTRO,
+  detectLanguage,
+  introFor,
   isMusicOffer,
   isTtsEcho,
+  languageConfirm,
+  languageEnglishName,
+  languagePrompt,
   MUSIC_OFFER,
   scriptedForIntent,
   scriptedReply,
@@ -67,6 +89,7 @@ import {
 } from './phrases'
 import type { LatencyResult, ManagerState, MusicConsent, QuestionSource, SleepPhase } from './types'
 import type {
+  DriverRiskState,
   DriverState,
   FatigueEventType,
   FatigueThresholds,
@@ -135,6 +158,10 @@ export class ConversationManager {
   private lastAction: { type: string } | null = null
   /** dev diagnostics: total turns pushed into history this session */
   private turnCount = 0
+  /** the opening language-selection step is active (start of each session) */
+  private languagePromptActive = false
+  /** failed language-detection attempts on that step (fallback after 3) */
+  private languageAttempts = 0
 
   // --- refs --------------------------------------------------------------
   private questionStartRef = 0
@@ -187,6 +214,7 @@ export class ConversationManager {
       questionSource: this.questionSource,
       lastLatency: this.lastLatency,
       language: this.language,
+      awaitingLanguage: this.languagePromptActive,
       history: [...this.history],
       aiAvailable: this.aiAvailable,
       speaking: this.speaking,
@@ -441,6 +469,83 @@ export class ConversationManager {
    * the audio path is healthy AND no turn is in flight. If none of those
    * hold, staying silent IS the correct action.
    */
+  // ------------------------------------------------------ language onboarding
+  /**
+   * Opening step of every session: Routiq asks which language the driver
+   * wants to talk in, the driver answers, and only THEN does the real
+   * conversation (intro + first check-in) begin — in the chosen language.
+   */
+  private askLanguage() {
+    if (!this.deps.isActive()) return
+    this.languagePromptActive = true
+    this.languageAttempts = 0
+    this.issuePrompt(languagePrompt(this.language), 'scripted')
+    if (this.deps.mode() === 'demo') {
+      // Deterministic demo: the simulated driver always picks the current
+      // language, so the scripted arc proceeds on schedule.
+      this.demoLater(() => {
+        if (!this.deps.isActive() || !this.languagePromptActive) return
+        this.onDriverSpeech(languageEnglishName(this.language), 0.9)
+      }, 2500)
+    }
+  }
+
+  /** The driver's answer to the language question — detect, confirm, continue. */
+  private async handleLanguageReply(text: string) {
+    if (!this.deps.isActive()) return
+    this.clearTimers()
+    const code = detectLanguage(text)
+    if (!code) {
+      // Not a language name — ask again (bounded), then fall back so the
+      // session never wedges on an unanswered onboarding step.
+      this.languageAttempts += 1
+      this.pushTurn('driver', text || '(no reply)')
+      this.emit()
+      if (this.languageAttempts >= 3) {
+        this.languagePromptActive = false
+        this.proceedToOpening()
+        return
+      }
+      this.issuePrompt(languagePrompt(this.language), 'scripted')
+      if (this.deps.mode() === 'demo') {
+        this.demoLater(() => {
+          if (!this.deps.isActive() || !this.languagePromptActive) return
+          this.onDriverSpeech(languageEnglishName(this.language), 0.9)
+        }, 2500)
+      }
+      return
+    }
+    this.languagePromptActive = false
+    this.setLanguage(code)
+    this.pushTurn('driver', text || '(no reply)')
+    this.pushTurn('routiq', languageConfirm(code))
+    // Analyzing = the confirmation is being processed/spoken; a driver
+    // utterance here is dropped (not misrouted as a check-in response).
+    this.setPhase('analyzing')
+    this.emit()
+    this.deps
+      .emitEvent({ event_type: 'language_changed', language: code, transcript: text })
+      .catch(() => {})
+    // The confirmation speaks in the NEW language; only then does the intro
+    // + first check-in begin (also in that language).
+    this.speakText(languageConfirm(code), {
+      onComplete: () => this.proceedToOpening(),
+    })
+  }
+
+  /** After the language step: intro (localized), then the first check-in. */
+  private proceedToOpening() {
+    if (!this.deps.isActive()) return
+    this.setPhase('intro')
+    this.speakText(introFor(this.language), {
+      onComplete: () => {
+        if (!this.deps.isActive()) return
+        if (this.deps.mode() === 'demo') this.startDemo()
+        else void this.askQuestion()
+      },
+    })
+  }
+
   /**
    * Proactive check-in path (live mode). The FIRST check-in after start /
    * resume / recover always speaks — the conversation opens with Sarvam's
@@ -514,6 +619,13 @@ export class ConversationManager {
       return
     }
 
+    // ── reply to the opening language question ────────────────────────────
+    if (this.languagePromptActive) {
+      this.handlingTurn = false
+      void this.handleLanguageReply(text)
+      return
+    }
+
     // ── response to our prompt ────────────────────────────────────────────
     const safeLatency = Math.round(latency * 10) / 10
     const band = latencyBand(safeLatency, this.deps.thresholds())
@@ -571,18 +683,62 @@ export class ConversationManager {
           this.later(() => this.enterAlert(), 900)
           return
         }
+        // healthy reply -> acknowledge -> quiet monitoring (scheduler owns pacing)
+        // Re-enter 'quiet' FIRST so the acknowledgement (AI round-trip or
+        // scripted fallback) speaks while the mic is re-armed and pacing runs.
+        this.setPhase('quiet')
         // The passenger responds to the reply, then goes quiet. Music
         // consent replies need no spoken ack (the music itself is the reply).
+        // A real acknowledgement references what the driver SAID rather than
+        // a canned line — AI-first, scripted pool as fallback.
         if (!wasMusicOffer) {
-          const ack = scriptedReply(d.state, this.ackSeed++)
-          if (ack) {
-            this.pushTurn('routiq', ack)
-            this.speakText(ack)
-          }
+          this.acknowledgeResponse(text, d.state, this.ackSeed++)
         }
-        // healthy reply -> acknowledge -> quiet monitoring (scheduler owns pacing)
-        this.setPhase('quiet')
       })
+  }
+
+  // --------------------------------------------- response acknowledgements
+  /**
+   * Reply to a driver's check-in response. AI-first so the passenger
+   * references what the driver actually said ("good to hear — hope the
+   * traffic eases up") instead of cycling five canned lines; falls back to
+   * the scripted pool on timeout / AI-unavailable so the loop never stalls.
+   * The caller already re-entered 'quiet' — this only speaks.
+   */
+  private async acknowledgeResponse(text: string, state: DriverRiskState, seed: number) {
+    if (!this.deps.isActive()) return
+    const scripted = scriptedReply(state, seed)
+    if (this.aiEnabled && this.aiAvailable && this.deps.mode() === 'live') {
+      const ai = await Promise.race([
+        api
+          .fatigueChat({
+            intent: 'reply',
+            session_id: this.deps.sessionId() || undefined,
+            messages: this.history.map((h) => ({
+              role: h.role === 'driver' ? 'user' : 'assistant',
+              content: h.text,
+            })),
+            driver_text: text || undefined,
+            language: this.language,
+            road_context: this.deps.roadContext(),
+          })
+          .then((r) => (r.source !== 'scripted' ? r.reply : null)),
+        new Promise<string | null>((res) => this.later(() => res(null), 1500)),
+      ])
+      // The caller re-enters 'quiet' synchronously, so this speaks while quiet.
+      // If the driver already started a NEW turn, don't talk over them.
+      if (ai && this.deps.isActive() && this.phase === 'quiet' && !this.speaking) {
+        this.pushTurn('routiq', ai)
+        this.emit()
+        this.speakText(ai)
+        return
+      }
+    }
+    if (scripted && this.deps.isActive() && this.phase === 'quiet' && !this.speaking) {
+      this.pushTurn('routiq', scripted)
+      this.emit()
+      this.speakText(scripted)
+    }
   }
 
   // --------------------------------------------- driver-initiated turns
@@ -686,6 +842,15 @@ export class ConversationManager {
   // ------------------------------------------------------------- timeout
   private handleTimeout() {
     if (!this.deps.isActive() || this.phase === 'analyzing') return
+    if (this.languagePromptActive) {
+      // The driver never answered the language question. That silence is NOT
+      // a fatigue signal — fall back to the current/saved language and start
+      // the real conversation anyway.
+      this.languagePromptActive = false
+      this.clearTimers()
+      this.proceedToOpening()
+      return
+    }
     this.deps.transport()?.stopListening()
     this.clearTimers()
     this.setPhase('analyzing')
@@ -822,13 +987,13 @@ export class ConversationManager {
 
     this.later(() => {
       if (!this.deps.isActive()) return
-      this.speakText(INTRO)
-      this.later(() => {
-        if (!this.deps.isActive()) return
-        this.setPhase('intro')
-        if (mode === 'demo') this.startDemo()
-        else this.askQuestion()
-      }, 800)
+      // The session opens with the LANGUAGE question: Routiq asks which
+      // language the driver wants, and only after the driver chooses (and
+      // hears a confirmation) does the intro + first check-in begin — in
+      // that language. The intro is still sequenced via speakText's
+      // onComplete so the response countdown can never start while an
+      // earlier TTS utterance is still playing.
+      this.askLanguage()
     }, 500)
   }
 
@@ -855,6 +1020,8 @@ export class ConversationManager {
     this.musicConsent = 'idle'
     this.history = []
     this.lastLatency = null
+    this.languagePromptActive = false
+    this.languageAttempts = 0
   }
 
   pause() {
@@ -925,6 +1092,9 @@ export class ConversationManager {
     } catch {
       /* noop */
     }
+    // Keep the recognizer's STT hint in sync with the conversation language
+    // so a driver who chose Tamil/Telugu/… is transcribed in that language.
+    this.deps.transport()?.setLanguage(code)
     this.emit()
   }
 

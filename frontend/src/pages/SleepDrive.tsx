@@ -122,7 +122,9 @@ export function SleepDrive({ onGoEmergency }: { onGoEmergency: () => void }) {
                   <div className="mb-3 flex items-center justify-center gap-2">
                     <SectionLabel>
                       {waiting
-                        ? "Listening for response"
+                        ? f.awaitingLanguage
+                          ? "Choose a language"
+                          : "Listening for response"
                         : analyzing
                           ? "Analyzing response"
                           : "AI prompt"}

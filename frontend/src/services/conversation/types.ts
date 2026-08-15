@@ -53,6 +53,8 @@ export interface ManagerState {
   questionSource: QuestionSource
   lastLatency: LatencyResult | null
   language: string
+  /** the opening "which language?" step is awaiting the driver's reply */
+  awaitingLanguage: boolean
   history: ConversationTurn[]
   aiAvailable: boolean | null
   speaking: boolean

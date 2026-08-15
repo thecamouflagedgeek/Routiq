@@ -30,6 +30,7 @@ Design rules (non-negotiable):
 from __future__ import annotations
 
 import math
+import random
 import statistics
 import time
 import uuid
@@ -47,27 +48,54 @@ from app.models import (
 RISK_BANDS = ["NORMAL", "ATTENTION", "ELEVATED", "HIGH_CONCERN"]
 _BAND_INDEX = {name: i for i, name in enumerate(RISK_BANDS)}
 
-# Conversational pool — friendly, brief, never a checklist.
+# Conversational pool — friendly, brief, never a checklist. Large enough
+# that a normal drive never hears the same check-in twice; selection is
+# randomized away from recently-used prompts (see next_prompt).
 QUESTION_POOL = [
     "How's the drive going?",
-    "Quick check — what was the last turn you took?",
-    "Want me to play something for you?",
+    "Anything interesting on the road ahead?",
     "What road are we on right now?",
-    "How are you feeling — need a break soon?",
+    "Quick check — how are you feeling?",
+    "Want me to play something for you?",
+    "How's the traffic treating you?",
+    "Long stretch ahead — doing okay?",
+    "What was the last turn you took?",
+    "Need a break soon?",
+    "How are the eyes doing?",
+    "Everything steady on your end?",
+    "How long have we been driving now?",
+    "Any spots up ahead I should keep an eye on?",
+    "Feeling more awake now or less?",
+    "What's the next landmark you expect to see?",
+    "Warm in here — should I suggest a stop for air?",
+    "How's the car handling?",
+    "Are we close to where you wanted to stop?",
+    "Want me to keep you company for a bit?",
+    "What's the plan once we reach the destination?",
+    "Anything on your mind — road or otherwise?",
+    "How's the visibility up there?",
+    "Should I check for a better route ahead?",
+    "You've been quiet a while — still with me?",
 ]
 
 CHECKIN_VARIANTS: dict[str, list[str]] = {
     "ATTENTION": [
         "Hey, you doing okay? Just checking in.",
         "You seem a little quiet — everything alright up there?",
+        "You've been quiet for a few minutes — all good?",
+        "Quick check: still with me?",
     ],
     "ELEVATED": [
         "You've been a little quiet. Hey, are you still with me?",
         "A couple of those replies were slow. Want me to help you find a place to stop?",
+        "Your replies have slowed — how are you feeling right now?",
+        "Let's take stock: are you okay to keep driving, or should we plan a stop?",
     ],
     "HIGH_CONCERN": [
         "Your responses have slowed significantly. If you're feeling tired, "
         "please consider stopping somewhere safe for a break.",
+        "I'm concerned about the way your responses have slowed. Please find a "
+        "safe place to pull over and rest.",
     ],
 }
 
@@ -134,6 +162,8 @@ class FatigueEngine:
         self._last_event_at: dict[str, float] = {}
         self._adverse_streak: dict[str, int] = {}
         self._good_streak: dict[str, int] = {}
+        # recently asked prompts per session — the picker avoids repeating them
+        self._asked: dict[str, list[str]] = {}
         self._default_language = default_language
 
     # ------------------------------------------------------------------ setup
@@ -153,6 +183,7 @@ class FatigueEngine:
             self._last_event_at,
             self._adverse_streak,
             self._good_streak,
+            self._asked,
         ):
             store.pop(stalest, None)
 
@@ -678,15 +709,20 @@ class FatigueEngine:
 
     # ------------------------------------------------------------ next prompt
     def next_prompt(self, session: FatigueSession) -> str:
+        """Pick the next check-in: a random prompt from the state-appropriate
+        pool, avoiding anything asked recently so a drive never feels scripted.
+        Falls back to any pool member once the recent window is exhausted."""
         state = session.state
-        if state in CHECKIN_VARIANTS:
-            variants = CHECKIN_VARIANTS[state]
-            idx = session.questions_asked % len(variants)
-            candidate = variants[idx]
-            if candidate == session.last_question and len(variants) > 1:
-                candidate = variants[(idx + 1) % len(variants)]
-            return candidate
-        return QUESTION_POOL[session.questions_asked % len(QUESTION_POOL)]
+        pool = CHECKIN_VARIANTS.get(state) or QUESTION_POOL
+        recent = self._asked.get(session.session_id, [])
+        usable = [p for p in pool if p not in recent] or pool
+        candidate = random.choice(usable)
+        if candidate == session.last_question and len(usable) > 1:
+            others = [p for p in usable if p != session.last_question]
+            if others:
+                candidate = random.choice(others)
+        self._asked[session.session_id] = (recent + [candidate])[-6:]
+        return candidate
 
     def critical_message(self) -> str:
         return CRITICAL_MESSAGE

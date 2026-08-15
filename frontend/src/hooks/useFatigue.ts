@@ -68,6 +68,7 @@ const INITIAL_MANAGER_STATE: ManagerState = {
   questionSource: 'scripted',
   lastLatency: null,
   language: 'auto',
+  awaitingLanguage: false,
   history: [],
   aiAvailable: null,
   speaking: false,
@@ -115,7 +116,19 @@ export function useFatigue(onGoEmergency?: () => void) {
   onEmergencyRef.current = onGoEmergency
 
   const micSupported = useMemo(
-    () => typeof window !== 'undefined' && 'webkitSpeechRecognition' in window,
+    () =>
+      typeof window !== 'undefined' &&
+      (Boolean(
+        (window as unknown as {
+          SpeechRecognition?: unknown
+          webkitSpeechRecognition?: unknown
+        }).SpeechRecognition ||
+          (window as unknown as {
+            SpeechRecognition?: unknown
+            webkitSpeechRecognition?: unknown
+          }).webkitSpeechRecognition,
+      ) ||
+        Boolean(navigator.mediaDevices?.getUserMedia)),
     [],
   )
 
@@ -209,7 +222,12 @@ export function useFatigue(onGoEmergency?: () => void) {
 
   // ------------------------------------------------------------- transport
   useEffect(() => {
-    const t = createAudioTransport('livekit')
+    // Default to the browser transport (SpeechRecognition with a Sarvam VAD
+    // fallback). The LiveKit room transport is NOT safe as a default: it
+    // needs a running LiveKit server AND an agent worker to transcribe the
+    // driver — without them the mic never reports listening and no speech
+    // results ever arrive. Opt into it explicitly with VITE_TRANSPORT=livekit.
+    const t = createAudioTransport('browser')
     transportRef.current = t
     const offStatus = t.onStatus((s) => {
       setListening(s.listening)
@@ -242,7 +260,14 @@ export function useFatigue(onGoEmergency?: () => void) {
   // ------------------------------------------------------- public surface
   const start = useCallback(
     (m?: SleepMode) => {
-      const useMode = m ?? modeRef.current
+      // PillButton's onClick is typed `() => void`, but React passes the
+      // MouseEvent through at runtime — so `onClick={f.start}` delivers the
+      // event as the first argument. Treating that object as the mode sent
+      // it straight into createFatigueSession's JSON.stringify, which threw
+      // "Converting circular structure to JSON" synchronously inside
+      // ConversationManager.start(), aborting the whole session before the
+      // intro, the first question, or the mic ever came up.
+      const useMode = (typeof m === 'string' ? m : modeRef.current) as SleepMode
       modeRef.current = useMode
       setMode(useMode)
       manager.start(useMode)
@@ -346,6 +371,7 @@ export function useFatigue(onGoEmergency?: () => void) {
     isActive: activeRef.current,
     // NEW — bidirectional / multilingual surface
     language: managerState.language,
+    awaitingLanguage: managerState.awaitingLanguage,
     setLanguage,
     conversationState: managerState.conversationState,
     history: managerState.history,

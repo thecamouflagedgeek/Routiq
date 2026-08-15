@@ -423,8 +423,16 @@ async def fatigue_chat(req: FatigueChatRequest) -> FatigueChatResponse:
     session = fatigue.get(req.session_id) if req.session_id else None
     # The driver's explicit selection (from the UI / manager) wins over the
     # session's stored value — this is how a mid-session language switch
-    # from the client is honoured without restarting the session.
-    language = req.language or (session.language if session else None) or "en-IN"
+    # from the client is honoured without restarting the session. "auto" is
+    # NOT a real language: it means "use the session's current language"
+    # (which the engine updates on genuine detected switches), so it must
+    # never reach the LLM as a literal "auto" — that made Groq answer in a
+    # language the driver never chose.
+    language = (
+        req.language
+        if req.language and req.language != "auto"
+        else (session.language if session else None) or "en-IN"
+    )
     driver_text = (req.driver_text or "").strip()
 
     # ----------------------------------------------------------- intent

@@ -63,6 +63,8 @@ export interface EngineState {
   adverseStreak: number
   goodStreak: number
   lastEventAtMs: number
+  // recently asked prompts — the picker avoids repeating them
+  askedPrompts: string[]
 }
 
 const BAND_INDEX: Record<DriverRiskState, number> = {
@@ -75,23 +77,47 @@ const BANDS: DriverRiskState[] = ['NORMAL', 'ATTENTION', 'ELEVATED', 'HIGH_CONCE
 
 const QUESTION_POOL = [
   "How's the drive going?",
-  'Quick check — what was the last turn you took?',
-  'Want me to play something for you?',
+  'Anything interesting on the road ahead?',
   'What road are we on right now?',
-  'How are you feeling — need a break soon?',
+  'Quick check — how are you feeling?',
+  'Want me to play something for you?',
+  "How's the traffic treating you?",
+  'Long stretch ahead — doing okay?',
+  'What was the last turn you took?',
+  'Need a break soon?',
+  'How are the eyes doing?',
+  'Everything steady on your end?',
+  'How long have we been driving now?',
+  'Any spots up ahead I should keep an eye on?',
+  'Feeling more awake now or less?',
+  "What's the next landmark you expect to see?",
+  'Warm in here — should I suggest a stop for air?',
+  "How's the car handling?",
+  'Are we close to where you wanted to stop?',
+  'Want me to keep you company for a bit?',
+  "What's the plan once we reach the destination?",
+  'Anything on your mind — road or otherwise?',
+  "How's the visibility up there?",
+  'Should I check for a better route ahead?',
+  "You've been quiet a while — still with me?",
 ]
 
 const CHECKIN_VARIANTS: Record<string, string[]> = {
   ATTENTION: [
     'Hey, you doing okay? Just checking in.',
     'You seem a little quiet — everything alright up there?',
+    "You've been quiet for a few minutes — all good?",
+    'Quick check: still with me?',
   ],
   ELEVATED: [
     "You've been a little quiet. Hey, are you still with me?",
     'A couple of those replies were slow. Want me to help you find a place to stop?',
+    'Your replies have slowed — how are you feeling right now?',
+    "Let's take stock: are you okay to keep driving, or should we plan a stop?",
   ],
   HIGH_CONCERN: [
     "Your responses have slowed significantly. If you're feeling tired, please consider stopping somewhere safe for a break.",
+    "I'm concerned about the way your responses have slowed. Please find a safe place to pull over and rest.",
   ],
 }
 
@@ -138,6 +164,7 @@ export function createEngineState(): EngineState {
     adverseStreak: 0,
     goodStreak: 0,
     lastEventAtMs: Date.now(),
+    askedPrompts: [],
   }
 }
 
@@ -317,6 +344,9 @@ export function applyEvent(
       s.conversation_state = 'WAITING_FOR_RESPONSE'
       s.questions_asked += 1
       s.last_question = event.transcript || "How's the drive going?"
+      if (event.transcript) {
+        s.askedPrompts = [...s.askedPrompts.slice(-5), event.transcript]
+      }
       log(s, 'prompt_issued', `Prompt issued: "${s.last_question}"`)
       break
     case 'speech_started':
@@ -432,19 +462,24 @@ function bandMessage(band: string, score: number): string {
   return 'Response looks good — continuing to monitor.'
 }
 
-/** Pick the next conversational prompt for the current state. */
+/** Pick the next conversational prompt for the current state.
+ *
+ * Deterministic (the demo must stay scripted) but non-repetitive: skips any
+ * prompt asked in the recent window, so a drive never hears the same line
+ * twice in a row and cycles through the whole pool before repeating. Mirrors
+ * the backend's avoidance logic in app/services/fatigue.py.
+ */
 export function nextPrompt(s: EngineState): string {
   const level = s.state
-  if (level in CHECKIN_VARIANTS) {
-    const variants = CHECKIN_VARIANTS[level]
-    const idx = s.questions_asked % variants.length
-    let candidate = variants[idx]
-    if (candidate === s.last_question && variants.length > 1) {
-      candidate = variants[(idx + 1) % variants.length]
-    }
-    return candidate
+  const pool = CHECKIN_VARIANTS[level] ?? QUESTION_POOL
+  const fresh = pool.filter((p) => !s.askedPrompts.includes(p))
+  const usable = fresh.length ? fresh : pool
+  const idx = s.questions_asked % usable.length
+  let candidate = usable[idx]
+  if (candidate === s.last_question && usable.length > 1) {
+    candidate = usable[(idx + 1) % usable.length]
   }
-  return QUESTION_POOL[s.questions_asked % QUESTION_POOL.length]
+  return candidate
 }
 
 /**
