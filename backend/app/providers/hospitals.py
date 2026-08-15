@@ -3,7 +3,7 @@
 No hardcoded hospitals: candidates come from Overpass around the driver's
 actual GPS coordinates (configurable radius, default 15 km). Each candidate's
 road ETA comes from live OSRM routing. Hospitals OSRM cannot route are kept
-with eta_min=None (\"Driving time unavailable\") and pushed below ranked ones —
+with eta_min=None ("Driving time unavailable") and pushed below ranked ones —
 we never substitute a fabricated ETA.
 """
 from __future__ import annotations
@@ -28,31 +28,11 @@ class HospitalProvider:
     ) -> list[Hospital]:
         """Rank hospitals by real road ETA around `point`.
 
-    def _generate_demo(self, point: Point, count: int = 8) -> list[dict]:
-        lat, lon = point
-        out = []
-        for i in range(count):
-            bearing = 2 * 3.14159 * _hash01("bear", i, point)
-            dist = 0.004 + _hash01("dist", i, point) * 0.05  # 0.4 .. 5.5 km
-            hlat = lat + dist * 0.9 * _hash01("hlat", i, point)
-            hlon = lon + dist * 0.9 * _hash01("hlon", i, point)
-            out.append({
-                "id": f"demo-hosp-{i}",
-                "name": DEMO_PREFIXES[int(_hash01("n", i, point) * len(DEMO_PREFIXES))],
-                "address": "Demo location (no hospital dataset nearby)",
-                "lat": round(hlat, 6),
-                "lon": round(hlon, 6),
-                "phone": "",
-            })
-        return out
-
-    async def hospitals_near(self, point: Point, limit: int | None = None,
-                               radius_km: float | None = None) -> list[Hospital]:
+        Raises HospitalSearchError when Overpass is unreachable — callers
+        surface that as a clear error instead of showing fake hospitals.
+        """
         limit = limit or settings.hospital_limit
-        candidates = self._candidates(point, limit)
-        if radius_km:
-            candidates = [h for h in candidates
-                          if haversine_km((h["lat"], h["lon"]), point) <= radius_km]
+        radius = radius_km or settings.hospital_search_radius_km
 
         candidates = await query_hospitals(point, radius)
         # Straight-line distance only picks *candidates*; final ranking is road ETA.

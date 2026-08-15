@@ -18,7 +18,7 @@ No API keys are required to run — every provider has a demo fallback and the
 response always declares whether data is LIVE or DEMO.
 """
 from __future__ import annotations
-
+import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Query
@@ -45,6 +45,9 @@ from app.models import (
     RouteAlternative,
     RouteResponse,
     SafetyScoreRequest,
+    TranscribeResponse,
+    TTSRequest,
+    TTSResponse,
 )
 from app.providers.hazards import HazardService
 from app.providers.hospitals import HospitalProvider
