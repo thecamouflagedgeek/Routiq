@@ -62,6 +62,7 @@ export default function App() {
         onReportHazard={openReportHazard}
         dark={dark}
         onToggleDark={() => setDark((d) => !d)}
+        hideBrandPill={route.page === "dashboard"}
       />
 
       {route.page === "sleep" && (

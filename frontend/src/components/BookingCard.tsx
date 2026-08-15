@@ -1,5 +1,11 @@
-import { useMemo } from "react";
-import { ArrowRight, Loader2, ShieldCheck } from "lucide-react";
+import { useMemo, useState } from "react";
+import {
+  ArrowRight,
+  Clock,
+  Loader2,
+  Navigation,
+  ShieldCheck,
+} from "lucide-react";
 import type { RouteResponse } from "../types";
 import { RiskBadge } from "./ui";
 
@@ -18,6 +24,8 @@ export function BookingCard({
   onShowSegments,
   expanded,
 }: Props) {
+  const [showSafetyDetails, setShowSafetyDetails] = useState(false);
+
   const summary = useMemo(() => {
     if (!route) return "Planning a safer route…";
 
@@ -40,15 +48,42 @@ export function BookingCard({
           <span className="h-1.5 w-12 rounded-full bg-neutral-200" />
         </div>
 
+        {route?.weather && (
+          <div className="mb-2 flex items-center justify-between">
+            <span className="flex items-center gap-1.5 text-[11px] font-semibold text-neutral-500">
+              <Navigation size={12} className="text-blue-500" /> Best route
+            </span>
+            <span className="inline-flex items-center gap-1 rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-0.5 text-[10px] font-semibold text-neutral-600">
+              {route.weather.main === "Clear"
+                ? "☀️"
+                : route.weather.main === "Rain"
+                  ? "🌧️"
+                  : "☁️"}{" "}
+              {route.weather.temp_c}°C
+            </span>
+          </div>
+        )}
+
         <button
           type="button"
           onClick={route ? onShowSegments : onPlanRoute}
+          disabled={!route && loading}
           className="w-full text-left"
         >
           <div className="flex items-center justify-between gap-2 sm:gap-3">
             <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wider text-neutral-400">
+                <Clock size={11} /> {route ? "Estimated time" : "Route"}
+              </div>
               <div className="truncate text-sm font-black tracking-tight text-neutral-900 sm:text-base">
-                {summary}
+                {loading && !route ? (
+                  <span className="inline-flex items-center gap-2">
+                    <Loader2 size={15} className="animate-spin" /> Finding safe
+                    route…
+                  </span>
+                ) : (
+                  summary
+                )}
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -68,28 +103,44 @@ export function BookingCard({
               </span>
             </div>
 
-            <button
-              type="button"
-              onClick={onShowSegments}
-              className="shrink-0 text-[11px] font-bold text-neutral-900 hover:text-orange-600"
-            >
-              {expanded ? "Hide" : "Details"}
-            </button>
+            <div className="flex shrink-0 items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setShowSafetyDetails((v) => !v)}
+                className="text-[11px] font-bold text-orange-600 hover:underline"
+              >
+                {showSafetyDetails ? "Hide score" : "Safety score"}
+              </button>
+              <button
+                type="button"
+                onClick={onShowSegments}
+                className="text-[11px] font-bold text-neutral-900 hover:text-orange-600"
+              >
+                {expanded ? "Hide" : "Details"}
+              </button>
+            </div>
           </div>
         )}
 
-        {!route && (
+        {showSafetyDetails && route && (
+          <div
+            className="mt-2 flex items-center justify-between rounded-lg p-2 text-xs font-semibold"
+            style={{ background: "rgba(34,197,94,0.08)", color: "#22c55e" }}
+          >
+            <span>Route safety rating</span>
+            <span className="text-sm font-black">
+              {route.overall_score}/100
+            </span>
+          </div>
+        )}
+
+        {!route && !loading && (
           <button
             type="button"
             onClick={onPlanRoute}
-            disabled={loading}
-            className="mt-3 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-neutral-900 px-4 py-3 text-sm font-black text-white disabled:opacity-60"
+            className="mt-3 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-neutral-900 px-4 py-3 text-sm font-black text-white"
           >
-            {loading ? (
-              <Loader2 size={16} className="animate-spin" />
-            ) : (
-              "Find safe route"
-            )}
+            Find safe route
           </button>
         )}
       </div>

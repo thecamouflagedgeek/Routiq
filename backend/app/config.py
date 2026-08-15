@@ -144,6 +144,7 @@ class Settings:
     traffic_api_key: str = os.environ.get("TRAFFIC_API_KEY", "")
     weather_api_key: str = os.environ.get("WEATHER_API_KEY", "")
     geoapify_api_key: str = os.environ.get("GEOAPIFY_API_KEY", "")
+    mappls_api_key: str = os.environ.get("MAPPLS_API_KEY", "")
 
     osrm_url: str = os.environ.get("OSRM_URL", "https://router.project-osrm.org")
     osrm_timeout: float = _env_float("OSRM_TIMEOUT", 3.0)

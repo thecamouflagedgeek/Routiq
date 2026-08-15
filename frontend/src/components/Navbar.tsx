@@ -1,8 +1,9 @@
 import {
+  MapPin,
   Moon,
   Navigation,
   Plus,
-  ShieldCheck,
+  Settings2,
   Siren,
   Sun,
   Waves,
@@ -22,43 +23,48 @@ export function Navbar({
   onReportHazard,
   dark,
   onToggleDark,
+  hideBrandPill = false,
 }: {
   page: Page;
   onNavigate: (p: Page) => void;
   onReportHazard: () => void;
   dark: boolean;
   onToggleDark: () => void;
+  hideBrandPill?: boolean;
 }) {
   return (
     <>
-      {/* ── Top Floating Brand Badge (Centered Desktop) ── */}
-      <div
-        className="fixed top-4 left-1/2 -translate-x-1/2 z-[1100] hidden md:flex items-center gap-2.5 rounded-2xl px-5 py-2 shadow-xl backdrop-blur-md transition-all"
-        style={{
-          background: dark
-            ? "rgba(18, 18, 21, 0.85)"
-            : "rgba(255, 255, 255, 0.9)",
-          border: dark
-            ? "1px solid rgba(255, 255, 255, 0.1)"
-            : "1px solid rgba(0, 0, 0, 0.08)",
-        }}
-      >
-        <span
-          className="flex h-7 w-7 items-center justify-center rounded-full shadow-inner"
-          style={{ background: "var(--text)" }}
+      {/* ── Top Floating Brand Badge (Centered Desktop) — hidden on the
+          dashboard, which renders its own pill centred over the map area ── */}
+      {!hideBrandPill && (
+        <div
+          className="fixed top-4 left-1/2 -translate-x-1/2 z-[1100] hidden md:flex items-center gap-2.5 rounded-2xl px-5 py-2 shadow-xl backdrop-blur-md transition-all"
+          style={{
+            background: dark
+              ? "rgba(18, 18, 21, 0.85)"
+              : "rgba(255, 255, 255, 0.9)",
+            border: dark
+              ? "1px solid rgba(255, 255, 255, 0.1)"
+              : "1px solid rgba(0, 0, 0, 0.08)",
+          }}
         >
-          <ShieldCheck size={15} style={{ color: "var(--orange)" }} />
-        </span>
-        <span
-          className="text-lg font-black tracking-tight"
-          style={{ color: "var(--text)" }}
-        >
-          Routiq<span style={{ color: "var(--orange)" }}>.</span>
-          <span className="ml-1.5 text-[10px] font-extrabold uppercase tracking-widest opacity-60">
-            SAFEAI
+          <span
+            className="flex h-7 w-7 items-center justify-center rounded-full shadow-inner"
+            style={{ background: "var(--text)" }}
+          >
+            <MapPin size={15} style={{ color: "var(--orange)" }} />
           </span>
-        </span>
-      </div>
+          <span
+            className="text-lg font-black tracking-tight"
+            style={{ color: "var(--text)" }}
+          >
+            Routiq<span style={{ color: "var(--orange)" }}>.</span>
+            <span className="ml-1.5 text-[10px] font-extrabold uppercase tracking-widest opacity-60">
+              SAFEAI
+            </span>
+          </span>
+        </div>
+      )}
 
       {/* ── Desktop Bottom Floating Dock Bar ── */}
       <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-[1100] hidden md:flex justify-center items-center pointer-events-none px-4 transition-all">
@@ -77,11 +83,12 @@ export function Navbar({
           <nav className="flex items-center gap-1">
             {LINKS.map((l) => {
               const active = page === l.id;
+              const Icon = l.icon;
               return (
                 <button
                   key={l.id}
                   onClick={() => onNavigate(l.id)}
-                  className="cursor-pointer rounded-2xl px-5 py-2 text-sm font-extrabold transition-all"
+                  className="flex cursor-pointer items-center gap-1.5 rounded-2xl px-5 py-2 text-sm font-extrabold transition-all"
                   style={
                     active
                       ? {
@@ -97,6 +104,7 @@ export function Navbar({
                         }
                   }
                 >
+                  <Icon size={15} />
                   {l.label}
                 </button>
               );
@@ -151,6 +159,24 @@ export function Navbar({
           >
             {dark ? <Sun size={15} /> : <Moon size={15} />}
           </button>
+
+          {/* Settings Button (utility, matches reference dock) */}
+          <button
+            onClick={() => {}}
+            className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-2xl transition-all hover:scale-105"
+            style={{
+              background: dark
+                ? "rgba(255, 255, 255, 0.08)"
+                : "rgba(0, 0, 0, 0.06)",
+              color: "var(--text)",
+              border: dark
+                ? "1px solid rgba(255, 255, 255, 0.1)"
+                : "1px solid rgba(0, 0, 0, 0.06)",
+            }}
+            title="Settings"
+          >
+            <Settings2 size={15} />
+          </button>
         </div>
       </div>
 
@@ -175,7 +201,7 @@ export function Navbar({
               className="flex h-7 w-7 items-center justify-center rounded-full"
               style={{ background: "var(--text)" }}
             >
-              <ShieldCheck size={14} style={{ color: "var(--orange)" }} />
+              <MapPin size={14} style={{ color: "var(--orange)" }} />
             </span>
             <span
               className="text-base font-black tracking-tight"

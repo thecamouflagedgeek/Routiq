@@ -262,16 +262,13 @@ export function MapView({
         center={center}
         zoom={zoom}
         zoomControl={false}
+        attributionControl={false}
         className="h-full w-full"
         ref={(map) => {
           if (map) onReady?.(map);
         }}
       >
-        <TileLayer
-          key={isDark ? "dark-tiles" : "light-tiles"}
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>'
-          url={tileUrl}
-        />
+        <TileLayer key={isDark ? "dark-tiles" : "light-tiles"} url={tileUrl} />
 
         {route && (
           <>

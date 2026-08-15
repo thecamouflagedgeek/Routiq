@@ -1,8 +1,9 @@
-"""Geocoding provider using Photon / Nominatim OpenStreetMap with Mumbai, India bias."""
+"""Geocoding provider using Mappls (MapmyIndia) REST API with fallback to Photon / Nominatim."""
 from __future__ import annotations
 
 import httpx
 from pydantic import BaseModel
+from app.config import settings
 
 
 class GeocodeResult(BaseModel):
@@ -13,9 +14,9 @@ class GeocodeResult(BaseModel):
 
 
 class GeocodingProvider:
-    """Geocoding service biased toward Mumbai, Maharashtra, India."""
+    """Universal hyper-accurate geocoding service using Mappls (MapmyIndia) API with fallback to Photon & Nominatim."""
 
-    def __init__(self, timeout: float = 3.0) -> None:
+    def __init__(self, timeout: float = 4.0) -> None:
         self.timeout = timeout
 
     async def geocode(self, query: str) -> list[GeocodeResult]:
@@ -23,30 +24,98 @@ class GeocodingProvider:
         if not query_str:
             return []
 
-        # If user didn't explicitly specify country/city, add Mumbai context
-        search_query = query_str
-        if not any(k in query_str.lower() for k in ["mumbai", "maharashtra", "india", "delhi", "bangalore"]):
-            search_query = f"{query_str}, Mumbai, Maharashtra, India"
+        # 1. Primary: Mappls (MapmyIndia) Search API
+        if settings.mappls_api_key:
+            mappls_results = await self._query_mappls(query_str)
+            if mappls_results:
+                return mappls_results
 
-        # Try Photon API first (fast, built on Nominatim, no strict rate-limiting)
-        photon_results = await self._query_photon(search_query, query_str)
+        # 2. Photon API
+        photon_results = await self._query_photon(query_str, query_str)
         if photon_results:
             return photon_results
 
-        # Fallback to direct Nominatim API
-        nominatim_results = await self._query_nominatim(search_query, query_str)
+        # 3. Direct Nominatim API
+        nominatim_results = await self._query_nominatim(query_str, query_str)
         if nominatim_results:
             return nominatim_results
 
+        # 4. Fallback with Mumbai context
+        fallback_query = f"{query_str}, Mumbai, India"
+        return await self._query_photon(fallback_query, query_str)
+
+    async def _query_mappls(self, query: str) -> list[GeocodeResult]:
+        headers = {"Authorization": f"Bearer {settings.mappls_api_key}"}
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                # 1. Mappls Atlas Places Search API
+                resp = await client.get(
+                    "https://atlas.mappls.com/api/places/search/json",
+                    params={"query": query},
+                    headers=headers,
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    results: list[GeocodeResult] = []
+                    for item in data.get("suggestedLocations", []):
+                        name = item.get("placeName") or query
+                        addr = item.get("placeAddress") or name
+                        lat = item.get("latitude")
+                        lon = item.get("longitude")
+                        if lat is not None and lon is not None:
+                            try:
+                                results.append(
+                                    GeocodeResult(
+                                        name=name,
+                                        latitude=round(float(lat), 6),
+                                        longitude=round(float(lon), 6),
+                                        formattedAddress=f"{name}, {addr}" if name not in addr else addr,
+                                    )
+                                )
+                            except (ValueError, TypeError):
+                                continue
+                    if results:
+                        return results
+
+                # 2. Mappls Outpost Geocode API
+                resp2 = await client.get(
+                    "https://outpost.mappls.com/api/places/geocode",
+                    params={"address": query},
+                    headers=headers,
+                )
+                if resp2.status_code == 200:
+                    data2 = resp2.json()
+                    results2: list[GeocodeResult] = []
+                    for item in data2.get("copResults", []):
+                        name = item.get("houseName") or item.get("street") or item.get("locality") or query
+                        formatted = item.get("formattedAddress", query)
+                        lat = item.get("latitude")
+                        lon = item.get("longitude")
+                        if lat and lon:
+                            try:
+                                results2.append(
+                                    GeocodeResult(
+                                        name=name,
+                                        latitude=round(float(lat), 6),
+                                        longitude=round(float(lon), 6),
+                                        formattedAddress=formatted,
+                                    )
+                                )
+                            except (ValueError, TypeError):
+                                continue
+                    if results2:
+                        return results2
+        except Exception as e:
+            print(f"[Mappls Geocode Exception] {e}")
         return []
 
     async def _query_photon(self, search_query: str, original_query: str) -> list[GeocodeResult]:
         url = "https://photon.komoot.io/api/"
         params = {
             "q": search_query,
-            "lat": 19.0760,  # Mumbai center latitude
-            "lon": 72.8777,  # Mumbai center longitude
-            "limit": 6,
+            "lat": 19.0760,
+            "lon": 72.8777,
+            "limit": 10,
         }
         try:
             headers = {"User-Agent": "RoadSafeAI/1.0 (roadsafe@example.com)"}
@@ -64,13 +133,13 @@ class GeocodingProvider:
                     continue
 
                 lon, lat = coords[0], coords[1]
-                name = props.get("name") or props.get("street") or props.get("district") or original_query
-                city = props.get("city") or props.get("county") or "Mumbai"
-                state = props.get("state") or "Maharashtra"
-                country = props.get("country") or "India"
+                name = props.get("name") or props.get("street") or props.get("district") or props.get("city") or original_query
+                city = props.get("city") or props.get("district") or props.get("county") or ""
+                state = props.get("state") or ""
+                country = props.get("country") or ""
 
-                parts = [p for p in [name, city, state, country] if p]
-                formatted = ", ".join(parts)
+                parts = [p for p in [name, city, state, country] if p and p != name]
+                formatted = f"{name}, {', '.join(parts)}" if parts else name
 
                 results.append(
                     GeocodeResult(
@@ -91,8 +160,7 @@ class GeocodingProvider:
             "q": search_query,
             "format": "json",
             "addressdetails": "1",
-            "countrycodes": "in",
-            "limit": 6,
+            "limit": 10,
         }
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
@@ -106,7 +174,8 @@ class GeocodingProvider:
                 lat = float(item["lat"])
                 lon = float(item["lon"])
                 display_name = item.get("display_name", original_query)
-                name = item.get("name") or item.get("address", {}).get("suburb") or original_query
+                addr = item.get("address", {})
+                name = item.get("name") or addr.get("amenity") or addr.get("suburb") or addr.get("road") or original_query
 
                 results.append(
                     GeocodeResult(
@@ -119,3 +188,30 @@ class GeocodingProvider:
             return results
         except Exception:
             return []
+
+    async def reverse_geocode(self, lat: float, lon: float) -> GeocodeResult:
+        url = "https://nominatim.openstreetmap.org/reverse"
+        headers = {"User-Agent": "RoadSafeAI/1.0 (roadsafe@example.com)"}
+        params = {"lat": lat, "lon": lon, "format": "json"}
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                resp = await client.get(url, params=params, headers=headers)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    display_name = data.get("display_name", f"{lat:.4f}, {lon:.4f}")
+                    addr = data.get("address", {})
+                    name = addr.get("amenity") or addr.get("suburb") or addr.get("neighbourhood") or addr.get("road") or data.get("name") or "Selected Location"
+                    return GeocodeResult(
+                        name=name,
+                        latitude=round(lat, 6),
+                        longitude=round(lon, 6),
+                        formattedAddress=display_name,
+                    )
+        except Exception:
+            pass
+        return GeocodeResult(
+            name=f"{lat:.4f}, {lon:.4f}",
+            latitude=round(lat, 6),
+            longitude=round(lon, 6),
+            formattedAddress=f"{lat:.4f}, {lon:.4f}, Mumbai, India",
+        )

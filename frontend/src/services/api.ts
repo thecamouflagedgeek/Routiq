@@ -47,6 +47,10 @@ export const api = {
     return request<GeocodeResult[]>(`/geocode?q=${encodeURIComponent(query)}`)
   },
 
+  reverseGeocode(lat: number, lon: number): Promise<GeocodeResult> {
+    return request<GeocodeResult>(`/reverse-geocode?lat=${lat}&lon=${lon}`)
+  },
+
   getRoute(start: [number, number], end: [number, number]): Promise<RouteResponse> {
     const q = `start_lat=${start[0]}&start_lon=${start[1]}&end_lat=${end[0]}&end_lon=${end[1]}`
     return request<RouteResponse>(`/route?${q}`)
