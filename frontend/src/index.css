@@ -1,5 +1,6 @@
-@import 'tailwindcss';
+/* @import for fonts must come before tailwindcss to avoid postcss warnings */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+@import 'tailwindcss';
 
 /* ---------------------------------------------------------------- tokens */
 :root {

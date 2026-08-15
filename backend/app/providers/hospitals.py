@@ -5,16 +5,17 @@ actual GPS coordinates (configurable radius, default 15 km). Each candidate's
 road ETA comes from live OSRM routing. Hospitals OSRM cannot route are kept
 with eta_min=None ("Driving time unavailable") and pushed below ranked ones —
 we never substitute a fabricated ETA.
+
+When GEOAPIFY_API_KEY is configured, Geoapify is used instead (faster, no rate limits).
 """
 from __future__ import annotations
-
-import asyncio
 
 from app.config import settings
 from app.models import Hospital
 from app.providers.base import Point
 from app.providers.overpass import query_hospitals
-from app.providers.routing import get_osrm_duration_min, haversine_km
+from app.providers.routing import get_osrm_durations_batch, haversine_km
+from app.services.http import Log
 
 
 class HospitalProvider:
@@ -30,19 +31,37 @@ class HospitalProvider:
 
         Raises HospitalSearchError when Overpass is unreachable — callers
         surface that as a clear error instead of showing fake hospitals.
-        """
+        
+        Uses Geoapify when configured (much faster), falls back to Overpass."""
         limit = limit or settings.hospital_limit
         radius = radius_km or settings.hospital_search_radius_km
 
-        candidates = await query_hospitals(point, radius)
+        # Try Geoapify first if configured
+        if settings.has_geoapify:
+            from app.providers.geoapify import GeoapifyProvider
+            geo = GeoapifyProvider()
+            candidates = await geo.find_hospitals(point, radius)
+            Log.info("hospitals", f"geoapify returned {len(candidates)} candidates")
+        else:
+            candidates = await query_hospitals(point, radius)
+            Log.info("hospitals", f"overpass returned {len(candidates)} candidates")
+        
         # Straight-line distance only picks *candidates*; final ranking is road ETA.
         candidates.sort(key=lambda h: haversine_km((h["lat"], h["lon"]), point))
         candidates = candidates[: settings.hospital_eta_candidates]
 
-        async def eta(h: dict) -> float | None:
-            return await get_osrm_duration_min((h["lat"], h["lon"]), point)
-
-        etas = await asyncio.gather(*(eta(h) for h in candidates))
+        # PERFORMANCE FIX: Use batch route matrix — ONE call for all hospitals
+        # Geoapify Route Matrix if configured, else OSRM /table
+        if settings.has_geoapify:
+            from app.providers.geoapify import GeoapifyProvider
+            geo = GeoapifyProvider()
+            destinations = [(h["lat"], h["lon"]) for h in candidates]
+            etas = await geo.route_matrix(point, destinations)
+            Log.info("hospitals", "used geoapify route matrix for ETAs")
+        else:
+            destinations = [(h["lat"], h["lon"]) for h in candidates]
+            etas = await get_osrm_durations_batch(point, destinations)
+            Log.info("hospitals", "used osrm /table for ETAs")
 
         hospitals: list[Hospital] = []
         for h, eta_min in zip(candidates, etas):

@@ -18,6 +18,7 @@ import { api } from "../services/api";
 import type { EmergencyResponse, EmergencyRoute, LatLng } from "../types";
 
 type Mode = "idle" | "crash" | "active";
+type LoadingStep = "location" | "hospitals" | "routing" | null;
 
 // Distance (meters) from the drawn route that triggers a route recalculation.
 const ROUTE_DEVIATION_M = 250;
@@ -68,15 +69,42 @@ export function Emergency({ onGoDashboard }: { onGoDashboard: () => void }) {
   const [navRoute, setNavRoute] = useState<EmergencyRoute | null>(null);
   const [sharing, setSharing] = useState<"ok" | "copied" | null>(null);
   const [usingDevLocation, setUsingDevLocation] = useState(false);
+  const [loadingStep, setLoadingStep] = useState<LoadingStep>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const geo = useGeolocation();
 
   const lastRecalc = useRef(0);
   const recalcInFlight = useRef(false);
 
+  // CRITICAL FIX: Request location immediately on mount if not available
+  useEffect(() => {
+    if (!geo.position && !geo.loading && !geo.error) {
+      console.log("[Emergency] No position yet, requesting location...");
+      geo.getPosition().then((pos) => {
+        if (pos) {
+          console.log("[Emergency] Location obtained:", pos);
+        } else {
+          console.warn("[Emergency] Failed to get location");
+        }
+      });
+    }
+  }, [geo]);
+
   // Map display location: real GPS fix → dev override → demo center.
   const location = geo.position ??
     DEV_LOCATION ?? { lat: DEFAULT_MAP_CENTER[0], lon: DEFAULT_MAP_CENTER[1] };
   const countdown = useCountdown(emergency?.countdown_seconds ?? 60);
+
+  // Debug logging for location state
+  useEffect(() => {
+    console.log("[Emergency] Location state:", {
+      "geo.position": geo.position,
+      "geo.error": geo.error,
+      "geo.loading": geo.loading,
+      "DEV_LOCATION": DEV_LOCATION,
+      "resolved location": location,
+    });
+  }, [geo.position, geo.error, geo.loading, location]);
 
   useEffect(() => {
     if (mode === "active" && emergency)
@@ -187,6 +215,85 @@ export function Emergency({ onGoDashboard }: { onGoDashboard: () => void }) {
     setMode("active");
   }, []);
 
+  /** Activate live emergency with progress indicators */
+  const activateLiveEmergency = useCallback(async () => {
+    console.log("[Emergency] Starting activation...");
+    console.log("[Emergency] existing app location (geo.position):", geo.position);
+    console.log("[Emergency] geo.error:", geo.error);
+    console.log("[Emergency] DEV_LOCATION:", DEV_LOCATION);
+    
+    setLoadingStep("location");
+    setErrorMessage(null);
+    setMode("crash");
+
+    try {
+      // Step 1: Get location - try existing position first, then request if needed
+      let loc = geo.position ?? DEV_LOCATION;
+      
+      // If no existing position, try to get it now
+      if (!loc) {
+        console.log("[Emergency] No existing location, requesting from browser...");
+        setLoadingStep("location");
+        const freshPos = await geo.getPosition();
+        loc = freshPos ?? null;
+      }
+      
+      console.log("[Emergency] resolved location:", loc);
+      
+      if (!loc) {
+        const msg = geo.error 
+          ? `Cannot access location: ${geo.error}. Please allow location access in your browser.` 
+          : "Unable to determine your location. Please enable location access.";
+        setErrorMessage(msg);
+        setLoadingStep(null);
+        setMode("idle");
+        console.error("[Emergency]", msg);
+        return;
+      }
+
+      console.log("[Emergency] latitude:", loc.lat);
+      console.log("[Emergency] longitude:", loc.lon);
+
+      // Step 2: Search hospitals
+      setLoadingStep("hospitals");
+      console.log("[Emergency] Sending location to backend:", loc);
+      const response = await api.activateEmergency(loc.lat, loc.lon);
+      console.log("[Emergency] API response:", response);
+      setEmergency(response);
+
+      // Step 3: Calculate route to nearest hospital
+      if (response.hospitals && response.hospitals.length > 0) {
+        setLoadingStep("routing");
+        const nearest = response.hospitals[0];
+        console.log("[Emergency] Getting route to:", nearest.name);
+        await startNavigation(loc, nearest);
+        console.log("[Emergency] Navigation started");
+      } else {
+        console.warn("[Emergency] No hospitals returned from API");
+      }
+
+      setMode("active");
+      setLoadingStep(null);
+      console.log("[Emergency] Activation complete");
+    } catch (err) {
+      console.error("[Emergency] Activation failed:", err);
+      
+      // Only fall back to demo if it's a real API error, not a missing location
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      setErrorMessage(
+        errorMsg.includes("timeout")
+          ? "Service timeout — API took too long to respond"
+          : errorMsg.includes("502")
+            ? "Backend error — check backend logs"
+            : `API Error: ${errorMsg}`,
+      );
+      
+      // DON'T auto-fallback to demo - let user decide
+      setMode("idle");
+      setLoadingStep(null);
+    }
+  }, [geo, startNavigation]);
+
   // First real maneuver (skips the tiny "depart" micro-step and "arrive").
   return (
     <div
@@ -273,43 +380,183 @@ export function Emergency({ onGoDashboard }: { onGoDashboard: () => void }) {
 
           {/* Right Panel */}
           <div className="space-y-4">
-            {mode === "idle" && (
-              <section
-                className="rounded-2xl p-5 shadow-sm border"
+            {/* Location Debug Info */}
+            {mode === "idle" && !errorMessage && (
+              <div
+                className="text-center text-xs px-3 py-2 rounded-lg border"
                 style={{
                   background: "var(--surface)",
                   borderColor: "var(--border)",
+                  color: "var(--text-3)",
                 }}
               >
-                <SectionLabel>Crash detection</SectionLabel>
-                <h2
-                  className="mt-1.5 text-lg font-bold"
-                  style={{ color: "var(--text)" }}
+                <MapPin size={12} className="inline mr-1" />
+                {geo.loading ? (
+                  <span className="text-blue-600 font-semibold">
+                    Getting your location...
+                  </span>
+                ) : geo.position ? (
+                  <span className="text-green-600 font-semibold">
+                    ✓ Live GPS: {geo.position.lat.toFixed(4)}, {geo.position.lon.toFixed(4)}
+                  </span>
+                ) : DEV_LOCATION ? (
+                  <span className="text-blue-600 font-semibold">
+                    Using dev location: {DEV_LOCATION.lat.toFixed(4)}, {DEV_LOCATION.lon.toFixed(4)}
+                  </span>
+                ) : geo.error ? (
+                  <span className="text-yellow-600 font-semibold">
+                    Location access needed - {geo.error}
+                  </span>
+                ) : (
+                  <span className="text-yellow-600 font-semibold">
+                    Requesting location access...
+                  </span>
+                )}
+              </div>
+            )}
+
+            {mode === "idle" && (
+              <>
+                {/* Location Status */}
+                {geo.error && !geo.position && (
+                  <section
+                    className="rounded-2xl p-4 shadow-sm border border-yellow-500/20 bg-yellow-500/5"
+                    style={{
+                      borderColor: "var(--border)",
+                    }}
+                  >
+                    <div className="flex items-start gap-3">
+                      <MapPin size={18} className="text-yellow-600 mt-0.5 flex-shrink-0" />
+                      <div className="flex-1">
+                        <div className="text-sm font-bold text-yellow-700">
+                          Location access needed
+                        </div>
+                        <div className="text-xs text-yellow-600 mt-1">
+                          {geo.error.includes("denied") || geo.error.includes("permission")
+                            ? "Please enable location access in your browser settings to use live emergency services."
+                            : geo.error}
+                        </div>
+                        <div className="text-[10px] text-yellow-600/70 mt-2">
+                          Demo mode will use a fallback location
+                        </div>
+                      </div>
+                    </div>
+                  </section>
+                )}
+
+                <section
+                  className="rounded-2xl p-5 shadow-sm border"
+                  style={{
+                    background: "var(--surface)",
+                    borderColor: "var(--border)",
+                  }}
                 >
-                  Simulate a collision
-                </h2>
-                <p
-                  className="mt-1 text-xs leading-relaxed"
-                  style={{ color: "var(--text-3)" }}
-                >
-                  In a real vehicle, accelerometer spikes would trigger this.
-                  For the demo, simulate it — then activate emergency response
-                  in one tap.
-                </p>
-                <PillButton
-                  variant="red"
-                  className="mt-4 w-full"
-                  onClick={triggerDemoEmergency}
-                >
-                  <Car size={15} /> SIMULATE CRASH
-                </PillButton>
-                <p
-                  className="mt-3 text-[10px] leading-relaxed"
-                  style={{ color: "var(--text-4)" }}
-                >
-                  Pipeline: sensor spike → velocity change → potential crash →
-                  driver confirmation → emergency mode.
-                </p>
+                  <SectionLabel>Crash detection</SectionLabel>
+                  <h2
+                    className="mt-1.5 text-lg font-bold"
+                    style={{ color: "var(--text)" }}
+                  >
+                    Simulate a collision
+                  </h2>
+                  <p
+                    className="mt-1 text-xs leading-relaxed"
+                    style={{ color: "var(--text-3)" }}
+                  >
+                    In a real vehicle, accelerometer spikes would trigger this.
+                    For the demo, simulate it — then activate emergency response
+                    in one tap.
+                  </p>
+                  <PillButton
+                    variant="red"
+                    className="mt-4 w-full"
+                    onClick={activateLiveEmergency}
+                  >
+                    <Car size={15} /> SIMULATE CRASH
+                  </PillButton>
+                  <p
+                    className="mt-3 text-[10px] leading-relaxed"
+                    style={{ color: "var(--text-4)" }}
+                  >
+                    Pipeline: sensor spike → velocity change → potential crash →
+                    driver confirmation → emergency mode.
+                  </p>
+                </section>
+              </>
+            )}
+
+            {mode === "crash" && loadingStep && (
+              <section
+                className="rounded-2xl border border-yellow-500/20 p-5 shadow-sm"
+                style={{ background: "var(--surface)" }}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-yellow-500 border-t-transparent" />
+                  <div className="flex-1">
+                    <div
+                      className="text-sm font-bold"
+                      style={{ color: "var(--text)" }}
+                    >
+                      {loadingStep === "location" && "Finding your location..."}
+                      {loadingStep === "hospitals" &&
+                        "Searching nearby hospitals..."}
+                      {loadingStep === "routing" &&
+                        "Calculating fastest route..."}
+                    </div>
+                    <div
+                      className="text-[10px]"
+                      style={{ color: "var(--text-3)" }}
+                    >
+                      {loadingStep === "location" && "Using GPS coordinates"}
+                      {loadingStep === "hospitals" &&
+                        "Querying OpenStreetMap within 15km"}
+                      {loadingStep === "routing" &&
+                        "Computing road ETAs via OSRM"}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setMode("idle");
+                      setLoadingStep(null);
+                      setErrorMessage(null);
+                    }}
+                    className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </section>
+            )}
+
+            {/* Error State with Retry/Demo Options */}
+            {mode === "idle" && errorMessage && (
+              <section
+                className="rounded-2xl p-4 shadow-sm border border-red-500/20 bg-red-500/5"
+              >
+                <div className="flex items-start gap-3">
+                  <Siren size={18} className="text-red-600 mt-0.5 flex-shrink-0" />
+                  <div className="flex-1">
+                    <div className="text-sm font-bold text-red-700">
+                      Emergency activation failed
+                    </div>
+                    <div className="text-xs text-red-600 mt-1">
+                      {errorMessage}
+                    </div>
+                    <div className="flex gap-2 mt-3">
+                      <button
+                        onClick={activateLiveEmergency}
+                        className="text-xs bg-red-600 text-white px-3 py-1.5 rounded-lg hover:bg-red-700"
+                      >
+                        Retry
+                      </button>
+                      <button
+                        onClick={triggerDemoEmergency}
+                        className="text-xs bg-gray-600 text-white px-3 py-1.5 rounded-lg hover:bg-gray-700"
+                      >
+                        Use Demo Mode
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </section>
             )}
 

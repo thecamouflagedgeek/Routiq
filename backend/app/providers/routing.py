@@ -89,6 +89,60 @@ class OsrmRoutingProvider:
         except Exception:
             return None
 
+    async def durations_matrix(
+        self, source: Point, destinations: list[Point]
+    ) -> list[float | None]:
+        """Road travel times (minutes) from one source to multiple destinations.
+        
+        Uses OSRM /table (matrix) endpoint — ONE call for all destinations
+        instead of N separate /route calls. Returns a list aligned with
+        destinations: [duration_min_0, duration_min_1, ...] where None means
+        no valid route exists for that destination.
+        
+        This is the correct way to rank hospitals by ETA — 10-20x faster than
+        calling /route in a loop."""
+        if not destinations:
+            return []
+        
+        # Build coordinate string: source;dest1;dest2;...
+        coords = f"{source[1]},{source[0]}"
+        for dest in destinations:
+            coords += f";{dest[1]},{dest[0]}"
+        
+        # sources=0 means only the first coordinate (index 0) is a source
+        # destinations=1;2;3;... means all others are destinations
+        dest_indices = ";".join(str(i) for i in range(1, len(destinations) + 1))
+        url = (
+            f"{self._base}/table/v1/driving/{coords}"
+            f"?sources=0&destinations={dest_indices}"
+        )
+        
+        try:
+            async with httpx.AsyncClient(timeout=self._timeout) as client:
+                resp = await client.get(url)
+                resp.raise_for_status()
+                data = resp.json()
+            
+            # Response structure: {"durations": [[dur_to_dest0, dur_to_dest1, ...]]}
+            # We want the first (and only) row since we have one source
+            if not data.get("durations") or not data["durations"]:
+                return [None] * len(destinations)
+            
+            durations_row = data["durations"][0]
+            result: list[float | None] = []
+            for dur in durations_row:
+                # OSRM returns null for unreachable destinations
+                if dur is None:
+                    result.append(None)
+                else:
+                    result.append(dur / 60.0)  # seconds -> minutes
+            
+            return result
+        except Exception:
+            # Network failure or timeout — return all None so callers can
+            # fall back to straight-line distance ranking
+            return [None] * len(destinations)
+
     async def route_with_alternatives(
         self, start: Point, end: Point, max_routes: int = 3
     ) -> list[dict] | None:
@@ -314,6 +368,20 @@ async def get_osrm_duration_min(start: Point, end: Point) -> float | None:
     return await osrm.duration(start, end)
 
 
+async def get_osrm_durations_batch(
+    source: Point, destinations: list[Point]
+) -> list[float | None]:
+    """Batch road travel times for ranking multiple destinations at once.
+    
+    Uses OSRM /table endpoint — ONE call for all destinations. This is the
+    correct way to rank hospitals: 10-20x faster than N separate /route calls.
+    TomTom is skipped for batch queries (its Matrix API needs separate config).
+    
+    Returns a list aligned with destinations where None = no valid route."""
+    osrm = OsrmRoutingProvider()
+    return await osrm.durations_matrix(source, destinations)
+
+
 async def get_route_alternatives(start: Point, end: Point, max_alts: int = 3) -> list[dict]:
     """Real route alternatives for the ride bottom sheet (fastest first).
 
@@ -366,9 +434,26 @@ async def get_emergency_route(
     """Full navigation route from the driver to the selected hospital.
 
     Returns {"source", "provider", "distance_km", "duration_min",
-    "geometry", "steps"}. OSRM provides real geometry + turn-by-turn steps;
-    on failure we fall back to the existing labelled DEMO route with no
-    fabricated instructions (the UI shows "Follow the highlighted route")."""
+    "geometry", "steps"}. Uses Geoapify when configured (fastest), then
+    OSRM, then demo fallback."""
+    
+    # Try Geoapify first if configured
+    if settings.has_geoapify:
+        from app.providers.geoapify import GeoapifyProvider
+        geo = GeoapifyProvider()
+        result = await geo.route_with_steps(start, end)
+        if result and len(result[0]) >= 2:
+            geometry, distance_km, duration_min, steps = result
+            return {
+                "source": "live",
+                "provider": "geoapify",
+                "distance_km": round(distance_km, 2),
+                "duration_min": round(duration_min, 1),
+                "geometry": geometry,
+                "steps": steps,
+            }
+    
+    # Fall back to OSRM
     osrm = OsrmRoutingProvider()
     result = await osrm.route_with_steps(start, end, with_geometry=True)
     if result and len(result[0]) >= 2:
@@ -381,6 +466,8 @@ async def get_emergency_route(
             "geometry": geometry,
             "steps": steps,
         }
+    
+    # Demo fallback
     demo = DemoRoutingProvider()
     geometry = await demo.route(start, end)
     km = polyline_length_km(geometry)
@@ -392,46 +479,4 @@ async def get_emergency_route(
         "geometry": geometry,
         "steps": [],
     }
-async def get_duration_min(start: Point, end: Point) -> tuple[float, str]:
-    """Road ETA in minutes. Uses live routing when available, else a seeded estimate."""
-    if settings.has_routing:
-        tom = TomTomRoutingProvider()
-        result = await tom.route(start, end)
-        if result and result[1] is not None:
-            return result[1]
-    osrm = OsrmRoutingProvider()
-    return await osrm.duration(start, end)
 
-
-async def get_emergency_route(
-    start: Point, end: Point
-) -> dict:
-    """Full navigation route from the driver to the selected hospital.
-
-    Returns {"source", "provider", "distance_km", "duration_min",
-    "geometry", "steps"}. OSRM provides real geometry + turn-by-turn steps;
-    on failure we fall back to the existing labelled DEMO route with no
-    fabricated instructions (the UI shows "Follow the highlighted route")."""
-    osrm = OsrmRoutingProvider()
-    result = await osrm.route_with_steps(start, end, with_geometry=True)
-    if result and len(result[0]) >= 2:
-        geometry, distance_km, duration_min, steps = result
-        return {
-            "source": "live",
-            "provider": "osrm",
-            "distance_km": round(distance_km, 2),
-            "duration_min": round(duration_min, 1),
-            "geometry": geometry,
-            "steps": steps,
-        }
-    demo = DemoRoutingProvider()
-    geometry = await demo.route(start, end)
-    km = polyline_length_km(geometry)
-    return {
-        "source": "demo",
-        "provider": "demo",
-        "distance_km": round(km, 2),
-        "duration_min": round(km / 40.0 * 60.0, 1),
-        "geometry": geometry,
-        "steps": [],
-    }

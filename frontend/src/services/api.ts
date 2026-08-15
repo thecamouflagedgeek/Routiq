@@ -22,7 +22,7 @@ import type {
  * conversational turn or leave a promise dangling forever. Long-running
  * calls (TTS synthesis) get a larger budget than chat.
  */
-async function request<T>(path: string, init?: RequestInit, timeoutMs = 15000): Promise<T> {
+async function request<T>(path: string, init?: RequestInit, timeoutMs = 20000): Promise<T> {
   const controller = new AbortController()
   const timer = window.setTimeout(() => controller.abort(), timeoutMs)
   const signal = init?.signal ? init.signal : controller.signal
@@ -71,10 +71,15 @@ export const api = {
   },
 
   activateEmergency(lat: number, lon: number, radiusKm?: number): Promise<EmergencyResponse> {
-    return request<EmergencyResponse>('/emergency/activate', {
-      method: 'POST',
-      body: JSON.stringify({ lat, lon, radius_km: radiusKm }),
-    })
+    // PERFORMANCE FIX: 10-second timeout with graceful fallback message
+    return request<EmergencyResponse>(
+      '/emergency/activate',
+      {
+        method: 'POST',
+        body: JSON.stringify({ lat, lon, radius_km: radiusKm }),
+      },
+      10000,
+    )
   },
 
   getEmergencyRoute(
