@@ -1,6 +1,6 @@
 import type { DriverRiskState, HazardSeverity, HazardType, Place, RiskLevel } from './types'
 
-export const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/$/, '')
+export const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
 // ---------------------------------------------------------------------------
 // Risk palette (matches backend risk_level_for thresholds)

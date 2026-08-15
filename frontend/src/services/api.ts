@@ -1,4 +1,3 @@
-import { API_BASE } from '../config'
 import type {
   DriverState,
   EmergencyResponse,
@@ -17,6 +16,8 @@ import type {
   TTSResponse,
 } from '../types'
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+
 /**
  * Abort a fetch after `timeoutMs` so a hung backend can never wedge a
  * conversational turn or leave a promise dangling forever. Long-running
@@ -26,7 +27,7 @@ async function request<T>(path: string, init?: RequestInit, timeoutMs = 20000): 
   const controller = new AbortController()
   const timer = window.setTimeout(() => controller.abort(), timeoutMs)
   const signal = init?.signal ? init.signal : controller.signal
-  const url = `${API_BASE}${path.startsWith('/api') ? path : `/api${path}`}`
+  const url = `${API_BASE_URL}${path.startsWith('/api') ? path : `/api${path}`}`
   try {
     const res = await fetch(url, {
       headers: { 'Content-Type': 'application/json' },
@@ -177,7 +178,7 @@ export const api = {
     const controller = new AbortController()
     const timer = window.setTimeout(() => controller.abort(), 20000)
     try {
-      const res = await fetch(`${API_BASE}/fatigue/audio/transcribe`, {
+      const res = await fetch(`${API_BASE_URL}/fatigue/audio/transcribe`, {
         method: 'POST',
         body: form,
         signal: controller.signal,
