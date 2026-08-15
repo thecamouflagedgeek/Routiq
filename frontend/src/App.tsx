@@ -16,42 +16,69 @@ function parseHash(): { page: Page; report: boolean } {
 
 export default function App() {
   const [route, setRoute] = useState(() => parseHash());
+  const [dark, setDark] = useState(() => {
+    try {
+      const saved = localStorage.getItem("routiq.dark");
+      if (saved !== null) return saved === "true";
+    } catch {
+      /* noop */
+    }
+    return window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false;
+  });
+
   const navigate = useCallback((page: Page) => {
     window.location.hash = `#/${page}`;
   }, []);
-  const fatigue = useFatigue(
-    useCallback(() => navigate("emergency"), [navigate]),
-  );
+
+  useFatigue(useCallback(() => navigate("emergency"), [navigate]));
+
   useEffect(() => {
     const onHash = () => setRoute(parseHash());
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
 
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", dark);
+    try {
+      localStorage.setItem("routiq.dark", String(dark));
+    } catch {
+      /* noop */
+    }
+  }, [dark]);
+
   const openReportHazard = useCallback(() => {
     window.location.hash = "#/dashboard?report=1";
   }, []);
 
   return (
-    <div className="min-h-screen bg-neutral-50 text-neutral-900">
+    <div
+      className="min-h-screen"
+      style={{ background: "var(--bg)", color: "var(--text)" }}
+    >
       <Navbar
         page={route.page}
         onNavigate={navigate}
         onReportHazard={openReportHazard}
+        dark={dark}
+        onToggleDark={() => setDark((d) => !d)}
       />
 
       {route.page === "sleep" && (
-        <SleepDrive
-          fatigue={fatigue}
-          onGoEmergency={() => navigate("emergency")}
-        />
+        <SleepDrive onGoEmergency={() => navigate("emergency")} />
       )}
 
       {route.page === "emergency" && (
         <Emergency onGoDashboard={() => navigate("dashboard")} />
       )}
 
-      {route.page === "dashboard" && <Dashboard initialReport={route.report} />}
+      {route.page === "dashboard" && (
+        <Dashboard
+          onOpenEmergency={() => navigate("emergency")}
+          initialReport={route.report}
+          dark={dark}
+        />
+      )}
     </div>
   );
 }
