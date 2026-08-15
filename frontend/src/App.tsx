@@ -19,7 +19,9 @@ export default function App() {
   const navigate = useCallback((page: Page) => {
     window.location.hash = `#/${page}`;
   }, []);
-  const fatigue = useFatigue(useCallback(() => navigate("emergency"), [navigate]));
+  const fatigue = useFatigue(
+    useCallback(() => navigate("emergency"), [navigate]),
+  );
   useEffect(() => {
     const onHash = () => setRoute(parseHash());
     window.addEventListener("hashchange", onHash);

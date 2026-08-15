@@ -65,19 +65,66 @@ class OsrmRoutingProvider:
 
     async def route(self, start: Point, end: Point) -> tuple[list[list[float]], float, float | None] | None:
         """Returns (geometry, duration_min, traffic) or None (no traffic info)."""
+        result = await self.route_with_steps(start, end, with_geometry=True)
+        if result is None:
+            return None
+        geometry, _distance, duration, _steps = result
+        return geometry, duration, None
+
+    async def duration(self, start: Point, end: Point) -> float | None:
+        """Road travel time in minutes, or None when no valid route exists.
+        No fabricated fallback — callers decide how to surface unavailability."""
         url = (
             f"{self._base}/route/v1/driving/{start[1]},{start[0]};{end[1]},{end[0]}"
-            "?overview=full&geometries=geojson&steps=false&alternatives=false"
+            "?overview=false&geometries=geojson&steps=false&alternatives=false"
         )
         try:
             async with httpx.AsyncClient(timeout=self._timeout) as client:
                 resp = await client.get(url)
                 resp.raise_for_status()
                 data = resp.json()
+            if not data.get("routes"):
+                return None
+            return data["routes"][0]["duration"] / 60.0
+        except Exception:
+            return None
+
+    async def route_with_steps(
+        self, start: Point, end: Point, with_geometry: bool = True
+    ) -> tuple[list[list[float]], float, float, list[dict]] | None:
+        """Full OSRM route: (geometry, distance_km, duration_min, steps).
+
+        Steps come straight from OSRM maneuvers (real turn instructions) —
+        we never invent them. Returns None when no valid route exists.
+        """
+        overview = "full" if with_geometry else "false"
+        url = (
+            f"{self._base}/route/v1/driving/{start[1]},{start[0]};{end[1]},{end[0]}"
+            f"?overview={overview}&geometries=geojson&steps=true&alternatives=false"
+        )
+        try:
+            async with httpx.AsyncClient(timeout=self._timeout) as client:
+                resp = await client.get(url)
+                resp.raise_for_status()
+                data = resp.json()
+            if not data.get("routes"):
+                return None
             route = data["routes"][0]
-            coords = route["geometry"]["coordinates"]  # [[lon, lat], ...]
-            geometry = [[lat, lon] for lon, lat in coords]
-            return geometry, route["duration"] / 60.0, None
+            geometry: list[list[float]] = []
+            if with_geometry:
+                coords = route["geometry"]["coordinates"]  # [[lon, lat], ...]
+                geometry = [[lat, lon] for lon, lat in coords]
+            steps: list[dict] = []
+            for leg in route.get("legs", []):
+                for step in leg.get("steps", []):
+                    name = (step.get("name") or "").strip()
+                    steps.append({
+                        "instruction": _instruction_for(step.get("maneuver") or {}, name),
+                        "distance_m": int(round(step.get("distance") or 0)),
+                        "name": name,
+                    })
+            distance_km = route.get("distance", 0) / 1000.0
+            return geometry, distance_km, route["duration"] / 60.0, steps
         except Exception:
             return None
 
@@ -156,17 +203,98 @@ async def get_route(start: Point, end: Point) -> tuple[list[list[float]], float,
     return geo, km / 40.0 * 60.0, "demo", "demo", None
 
 
-async def get_duration_min(start: Point, end: Point) -> tuple[float, str]:
-    """Road ETA in minutes. Uses live routing when available, else a seeded estimate."""
+_TURN_MODIFIERS = {
+    "left": "Turn left",
+    "right": "Turn right",
+    "sharp left": "Turn sharp left",
+    "sharp right": "Turn sharp right",
+    "slight left": "Merge slightly left",
+    "slight right": "Merge slightly right",
+    "straight": "Continue straight",
+    "uturn": "Make a U-turn",
+}
+
+
+def _instruction_for(maneuver: dict, name: str) -> str:
+    """Build a human-readable instruction from a real OSRM maneuver.
+    Falls back to a generic continuation — never invents a turn."""
+    mtype = maneuver.get("type", "")
+    modifier = maneuver.get("modifier", "")
+    turn = _TURN_MODIFIERS.get(modifier, "")
+    onto = f" onto {name}" if name else ""
+    if mtype == "depart":
+        if modifier:
+            return f"Head {modifier}"
+        bearing_after = maneuver.get("bearing_after")
+        if bearing_after is not None:
+            return f"Head {_direction_name(float(bearing_after))}"
+        return "Head to the route"
+    if mtype == "arrive":
+        return "Arrive at destination"
+    if mtype in ("turn", "end of road"):
+        return f"{turn or 'Turn'}{onto}" if turn else f"Continue{onto}"
+    if mtype == "roundabout turn":
+        return f"At the roundabout, {turn.lower() or 'turn'}{onto}"
+    if mtype in ("roundabout", "rotary"):
+        return "Enter the roundabout"
+    if mtype in ("exit roundabout", "exit rotary"):
+        return f"Exit the roundabout{onto}"
+    if mtype in ("merge", "fork", "on ramp", "off ramp"):
+        return f"{turn or 'Merge'}{onto}" if turn else f"Keep going{onto}"
+    if mtype in ("new name", "continue", "notification", "use lane"):
+        return f"Continue{onto}"
+    return "Continue"
+
+
+def _direction_name(bearing: float) -> str:
+    dirs = ["north", "north-east", "east", "south-east", "south", "south-west", "west", "north-west"]
+    return dirs[int(((bearing % 360) + 22.5) // 45) % 8]
+
+
+async def get_osrm_duration_min(start: Point, end: Point) -> float | None:
+    """Live road travel time in minutes for ranking hospitals.
+
+    Uses TomTom when configured (existing live hierarchy), else OSRM.
+    Returns None when no live routing provider produced a valid route —
+    callers must NOT substitute a fabricated ETA."""
     if settings.has_routing:
         tom = TomTomRoutingProvider()
         result = await tom.route(start, end)
-        if result:
-            return result[1], "live"
+        if result and result[1] is not None:
+            return result[1]
     osrm = OsrmRoutingProvider()
-    result = await osrm.route(start, end)
-    if result:
-        return result[1], "live"
-    km = haversine_km(start, end)
-    speed = 38.0 + (_hash01("spd", start, end) - 0.5) * 10.0
-    return km / speed * 60.0, "estimated"
+    return await osrm.duration(start, end)
+
+
+async def get_emergency_route(
+    start: Point, end: Point
+) -> dict:
+    """Full navigation route from the driver to the selected hospital.
+
+    Returns {"source", "provider", "distance_km", "duration_min",
+    "geometry", "steps"}. OSRM provides real geometry + turn-by-turn steps;
+    on failure we fall back to the existing labelled DEMO route with no
+    fabricated instructions (the UI shows "Follow the highlighted route")."""
+    osrm = OsrmRoutingProvider()
+    result = await osrm.route_with_steps(start, end, with_geometry=True)
+    if result and len(result[0]) >= 2:
+        geometry, distance_km, duration_min, steps = result
+        return {
+            "source": "live",
+            "provider": "osrm",
+            "distance_km": round(distance_km, 2),
+            "duration_min": round(duration_min, 1),
+            "geometry": geometry,
+            "steps": steps,
+        }
+    demo = DemoRoutingProvider()
+    geometry = await demo.route(start, end)
+    km = polyline_length_km(geometry)
+    return {
+        "source": "demo",
+        "provider": "demo",
+        "distance_km": round(km, 2),
+        "duration_min": round(km / 40.0 * 60.0, 1),
+        "geometry": geometry,
+        "steps": [],
+    }

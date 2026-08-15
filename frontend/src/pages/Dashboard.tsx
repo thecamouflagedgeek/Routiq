@@ -1,15 +1,23 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, List, MapPin, MapPinned, Plus } from "lucide-react";
+import {
+  ArrowRight,
+  ArrowUpDown,
+  ChevronDown,
+  List,
+  MapPin,
+  MapPinned,
+  Navigation,
+  Plus,
+} from "lucide-react";
 import { BookingCard } from "../components/BookingCard";
 import { HazardForm } from "../components/HazardForm";
 import { MapView } from "../components/map/MapView";
 import { PlaceAutocomplete } from "../components/PlaceAutocomplete";
 import { SegmentPanel } from "../components/SegmentPanel";
-import { RiskBadge, SectionLabel } from "../components/ui";
+import { SectionLabel } from "../components/ui";
 import { DEFAULT_END, DEFAULT_START, SEVERITY_META } from "../config";
 import { useGeolocation } from "../hooks/useGeolocation";
 import { api } from "../services/api";
-import { RISK_STATE_META } from "../config";
 import type {
   Hazard,
   HazardType,
@@ -17,28 +25,13 @@ import type {
   RouteResponse,
   Segment,
 } from "../types";
-import type { UseFatigue } from "../hooks/useFatigue";
 
 type PickMode = "start" | "end" | "hazard" | null;
 
-// Sleep Drive produces DRIVER risk; the road-safety engine produces ROAD
-// risk. A separate fusion step combines them — Sleep Drive never decides
-// route safety itself. This widget demonstrates the seam with a simple
-// probabilistic OR (a fatigued driver on a dangerous stretch is the worst
-// combination).
-function contextualRisk(driverRisk: number, roadScore: number): number {
-  const roadRisk = Math.max(0, (100 - roadScore) / 100);
-  return 1 - (1 - driverRisk) * (1 - roadRisk);
-}
-
 export function Dashboard({
-  onOpenEmergency,
   initialReport = false,
-  fatigue,
 }: {
-  onOpenEmergency: () => void;
   initialReport?: boolean;
-  fatigue: UseFatigue;
 }) {
   const [start, setStart] = useState<Place | null>(DEFAULT_START);
   const [end, setEnd] = useState<Place | null>(DEFAULT_END);
@@ -57,6 +50,7 @@ export function Dashboard({
     { type?: HazardType } | undefined
   >(undefined);
   const [fullscreen, setFullscreen] = useState(false);
+  const [searchExpanded, setSearchExpanded] = useState(true);
   const mapRef = useRef<L.Map | null>(null);
   const geo = useGeolocation();
 
@@ -180,6 +174,15 @@ export function Dashboard({
 
   const segments = route?.segments ?? [];
 
+  const swapRoutePoints = useCallback(() => {
+    const nextStart = end;
+    const nextEnd = start;
+    if (!nextStart || !nextEnd) return;
+    setStart(nextStart);
+    setEnd(nextEnd);
+    loadRoute(nextStart, nextEnd);
+  }, [start, end, loadRoute]);
+
   return (
     <div className="relative h-screen w-full overflow-hidden bg-neutral-100">
       {/* Map backdrop canvas */}
@@ -204,186 +207,170 @@ export function Dashboard({
         />
       </div>
 
-      {/* Left hero overlay (Responsive: desktop floating left, mobile top card) */}
-      <div className="pointer-events-none absolute inset-x-0 top-16 z-[1050] overflow-y-auto overflow-x-hidden scrollbar-hide p-3 md:inset-y-0 md:left-0 md:top-0 md:w-[420px] md:bg-gradient-to-r md:from-white/97 md:via-white/82 md:to-transparent md:p-6 md:pt-20">
-        <div className="pointer-events-auto space-y-4">
-          {/* Main Headline per Uber Reference Image */}
-          <div className="rounded-2xl bg-white/90 p-5 shadow-lg backdrop-blur-md md:bg-transparent md:p-0 md:shadow-none">
-            <h1 className="text-4xl font-black leading-[1.05] tracking-tight text-neutral-900 sm:text-5xl lg:text-6xl">
-              Go anywhere
-              <br />
-              with <span className="text-orange-500">NexRoad.</span>
-            </h1>
-            <p className="mt-3 text-sm font-semibold leading-relaxed text-neutral-500 sm:text-base">
-              Choose your exact pickup time up to 90 days in advance.
-            </p>
+      {/* Route-preview search and planning overlay */}
+      <div className="pointer-events-none absolute inset-x-2 top-3 z-[1050] sm:inset-x-3 md:top-6 md:px-6">
+        <div className="pointer-events-auto mx-auto max-w-[560px] rounded-[24px] border border-neutral-200/80 bg-white/90 p-2 shadow-[0_12px_30px_rgba(15,23,42,0.12)] backdrop-blur-xl sm:p-2.5 md:max-w-xl">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <button
+              type="button"
+              onClick={() => setSearchExpanded((v) => !v)}
+              className="flex min-w-0 flex-1 items-center gap-1.5 rounded-2xl px-1.5 py-1.5 text-left hover:bg-neutral-50 sm:gap-2 sm:px-2"
+            >
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-orange-100 text-orange-600 sm:h-8 sm:w-8">
+                <MapPin size={12} className="sm:size-[14px]" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[9px] font-medium uppercase tracking-[0.14em] text-neutral-400 sm:text-[10px]">
+                  From
+                </div>
+                <div className="truncate text-xs font-bold text-neutral-900 sm:text-sm">
+                  {start?.name ?? start?.label ?? "Origin"}
+                </div>
+              </div>
+            </button>
 
-            {/* Location pickers capsule */}
-            <div className="mt-5 flex items-center gap-2">
-              <div className="flex-1 space-y-2">
+            <button
+              type="button"
+              onClick={swapRoutePoints}
+              title="Swap origin and destination"
+              className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-800 shadow-sm transition hover:bg-neutral-50 sm:h-9 sm:w-9"
+            >
+              <ArrowUpDown size={14} className="sm:size-[15px]" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setSearchExpanded((v) => !v)}
+              className="flex min-w-0 flex-1 items-center gap-1.5 rounded-2xl px-1.5 py-1.5 text-left hover:bg-neutral-50 sm:gap-2 sm:px-2"
+            >
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-neutral-900 text-white sm:h-8 sm:w-8">
+                <Navigation size={12} className="sm:size-[14px]" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[9px] font-medium uppercase tracking-[0.14em] text-neutral-400 sm:text-[10px]">
+                  To
+                </div>
+                <div className="truncate text-xs font-bold text-neutral-900 sm:text-sm">
+                  {end?.name ?? end?.label ?? "Destination"}
+                </div>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              title="Calculate route"
+              onClick={() => start && end && loadRoute(start, end)}
+              className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full bg-black text-white shadow-md transition-all hover:bg-neutral-800 active:scale-95 sm:h-11 sm:w-11"
+            >
+              <ArrowRight size={16} className="sm:size-[18px]" />
+            </button>
+          </div>
+
+          {searchExpanded && (
+            <div className="mt-2 space-y-2 border-t border-neutral-100 pt-2">
+              <div className="flex items-center justify-between rounded-xl bg-neutral-50 px-2 py-1.5">
+                <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-neutral-400">
+                  Route search
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSearchExpanded(false)}
+                  className="inline-flex items-center gap-1 text-[10px] font-bold text-neutral-600"
+                >
+                  <ChevronDown size={12} className="rotate-180" /> Close
+                </button>
+              </div>
+
+              <div className="rounded-2xl border border-neutral-200 bg-white p-2 shadow-sm">
+                <div className="mb-2 flex items-center gap-2 rounded-xl bg-neutral-50 px-2 py-1.5">
+                  <MapPin size={12} className="text-orange-500" />
+                  <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-neutral-500">
+                    Start
+                  </span>
+                </div>
                 <PlaceAutocomplete
                   value={start}
-                  placeholder="E.g. Bandra West, Mumbai"
+                  placeholder="Enter starting destination"
                   variant="start"
                   onSelect={(p) => {
                     setStart(p);
                     if (end) loadRoute(p, end);
+                    setSearchExpanded(false);
                   }}
                   onUseMyLocation={() => useMyLocationForPlace("start")}
                   onPickOnMap={() => setPickMode("start")}
                   picking={pickMode === "start"}
                 />
+              </div>
+
+              <div className="rounded-2xl border border-neutral-200 bg-white p-2 shadow-sm">
+                <div className="mb-2 flex items-center gap-2 rounded-xl bg-neutral-50 px-2 py-1.5">
+                  <Navigation size={12} className="text-neutral-900" />
+                  <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-neutral-500">
+                    Destination
+                  </span>
+                </div>
                 <PlaceAutocomplete
                   value={end}
-                  placeholder="E.g. Malad West, Mumbai"
+                  placeholder="Enter ending destination"
                   variant="end"
                   onSelect={(p) => {
                     setEnd(p);
                     if (start) loadRoute(start, p);
+                    setSearchExpanded(false);
                   }}
                   onUseMyLocation={() => useMyLocationForPlace("end")}
                   onPickOnMap={() => setPickMode("end")}
                   picking={pickMode === "end"}
                 />
               </div>
-              <button
-                title="Calculate route & ride options"
-                onClick={() => start && end && loadRoute(start, end)}
-                className="flex h-12 w-12 cursor-pointer items-center justify-center rounded-full bg-black text-white shadow-md transition-all hover:bg-neutral-800 active:scale-95 shrink-0"
-              >
-                <ArrowRight size={20} />
-              </button>
-            </div>
-          </div>
-
-          {/* Desktop Floating Booking Card */}
-          <div className="hidden md:block">
-            <BookingCard
-              route={route}
-              loading={loading}
-              onPlanRoute={() => start && end && loadRoute(start, end)}
-              onShowSegments={() => {
-                setShowList((v) => !v);
-                setSelected(null);
-              }}
-              expanded={showList}
-            />
-          </div>
-
-          {/* Nearby hazards widget */}
-          {hazards.length > 0 && (
-            <div className="hidden md:block w-[380px] max-w-full rounded-2xl border border-neutral-200/80 bg-white/95 p-4 shadow-lg backdrop-blur-md">
-              <div className="mb-2 flex items-center justify-between">
-                <SectionLabel>Live road hazards</SectionLabel>
-                <button
-                  onClick={() => openHazardForm()}
-                  className="flex cursor-pointer items-center gap-1 rounded-full bg-neutral-100 px-2.5 py-1 text-[11px] font-bold text-neutral-700 hover:bg-neutral-200"
-                >
-                  <Plus size={12} /> Report
-                </button>
-              </div>
-              <ul className="space-y-1.5">
-                {hazards.slice(0, 3).map((h) => (
-                  <li
-                    key={h.id}
-                    className="flex items-center justify-between gap-2 text-xs"
-                  >
-                    <span className="flex min-w-0 items-center gap-2">
-                      <span
-                        className="h-2.5 w-2.5 shrink-0 rounded-full"
-                        style={{
-                          backgroundColor: SEVERITY_META[h.severity].color,
-                        }}
-                      />
-                      <span className="truncate font-semibold text-neutral-800">
-                        {h.description}
-                      </span>
-                      {h.source === "user" && (
-                        <span className="rounded bg-black px-1.5 py-0.5 text-[9px] font-extrabold text-white">
-                          YOU
-                        </span>
-                      )}
-                    </span>
-                    <span className="shrink-0 text-[10px] font-medium text-neutral-400">
-                      {h.distance_m != null
-                        ? `${Math.round(h.distance_m)} m`
-                        : ""}
-                    </span>
-                  </li>
-                ))}
-              </ul>
             </div>
           )}
         </div>
       </div>
 
-      {/* ── driver awareness · contextual risk fusion ── */}
-      {fatigue.isActive && route && (
-        <div className="absolute right-3 top-20 z-[1050] hidden w-[248px] overflow-hidden rounded-2xl border border-neutral-200 bg-white/95 shadow-2xl backdrop-blur-md lg:block">
-          <div className="flex items-center justify-between border-b border-neutral-100 px-4 py-2.5">
-            <SectionLabel>Driver awareness</SectionLabel>
-            <span
-              className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest ${
-                fatigue.mode === "demo"
-                  ? "bg-amber-50 text-amber-600"
-                  : "bg-emerald-50 text-emerald-600"
-              }`}
+      {/* Nearby hazards widget */}
+      {hazards.length > 0 && (
+        <div className="hidden md:block w-[380px] max-w-full rounded-2xl border border-neutral-200/80 bg-white/95 p-4 shadow-lg backdrop-blur-md md:absolute md:left-6 md:top-32">
+          <div className="mb-2 flex items-center justify-between">
+            <SectionLabel>Live road hazards</SectionLabel>
+            <button
+              onClick={() => openHazardForm()}
+              className="flex cursor-pointer items-center gap-1 rounded-full bg-neutral-100 px-2.5 py-1 text-[11px] font-bold text-neutral-700 hover:bg-neutral-200"
             >
-              {fatigue.mode === "demo" ? "Demo" : "Live"}
-            </span>
+              <Plus size={12} /> Report
+            </button>
           </div>
-          <div className="px-4 py-3">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-semibold uppercase tracking-widest text-neutral-400">
-                Engagement
-              </span>
-              <span
-                className="text-xl font-black tabular-nums"
-                style={{ color: RISK_STATE_META[fatigue.driver.state].color }}
+          <ul className="space-y-1.5">
+            {hazards.slice(0, 3).map((h) => (
+              <li
+                key={h.id}
+                className="flex items-center justify-between gap-2 text-xs"
               >
-                {Math.round(fatigue.driver.engagement * 100)}%
-              </span>
-            </div>
-            <div className="mt-2 flex items-center justify-between">
-              <span className="text-[10px] font-semibold uppercase tracking-widest text-neutral-400">
-                Fatigue risk
-              </span>
-              <RiskBadge level={RISK_STATE_META[fatigue.driver.state].riskLabel} />
-            </div>
-            <div className="mt-2 flex items-center justify-between">
-              <span className="text-[10px] font-semibold uppercase tracking-widest text-neutral-400">
-                Road risk
-              </span>
-              <RiskBadge
-                level={route.overall_risk}
-              />
-            </div>
-            <div className="mt-3 border-t border-dashed border-neutral-200 pt-3">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">
-                  Contextual risk
+                <span className="flex min-w-0 items-center gap-2">
+                  <span
+                    className="h-2.5 w-2.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: SEVERITY_META[h.severity].color }}
+                  />
+                  <span className="truncate font-semibold text-neutral-800">
+                    {h.description}
+                  </span>
+                  {h.source === "user" && (
+                    <span className="rounded bg-black px-1.5 py-0.5 text-[9px] font-extrabold text-white">
+                      YOU
+                    </span>
+                  )}
                 </span>
-                <span
-                  className="rounded-full px-2 py-0.5 text-[10px] font-black"
-                  style={{
-                    backgroundColor: `${RISK_STATE_META[fatigue.driver.state].color}1a`,
-                    color: RISK_STATE_META[fatigue.driver.state].color,
-                  }}
-                >
-                  {Math.round(contextualRisk(fatigue.driver.fatigue_risk, route.overall_score) * 100)}%
+                <span className="shrink-0 text-[10px] font-medium text-neutral-400">
+                  {h.distance_m != null ? `${Math.round(h.distance_m)} m` : ""}
                 </span>
-              </div>
-              <p className="mt-1 text-[10px] leading-relaxed text-neutral-400">
-                Combined driver + road risk — a fatigued driver on a dangerous
-                stretch warrants a stronger intervention than either alone.
-              </p>
-            </div>
-          </div>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 
-      {/* Mobile Floating Bottom Bar for Booking (Fixed at bottom on small screens) */}
-      <div className="fixed inset-x-4 bottom-4 z-[1050] md:hidden space-y-2">
+      <div className="md:hidden">
         <BookingCard
           route={route}
           loading={loading}
@@ -394,12 +381,6 @@ export function Dashboard({
           }}
           expanded={showList}
         />
-        <button
-          onClick={onOpenEmergency}
-          className="flex w-full items-center justify-center gap-2 rounded-xl bg-red-600 py-2.5 text-xs font-black text-white shadow-lg cursor-pointer"
-        >
-          🚨 SOS Emergency
-        </button>
       </div>
 
       {/* Route segment list drawer */}

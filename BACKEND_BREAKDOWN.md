@@ -6,34 +6,40 @@ A concise architectural overview of the FastAPI backend for **RoadSafe AI**, det
 
 ## 🏗️ Core Architecture & Endpoints
 
-| Endpoint | Method | Description | Primary Engine / Provider |
-| :--- | :--- | :--- | :--- |
-| `/api/health` | `GET` | System health check | Lightweight status ping |
-| `/api/config` | `GET` / `POST` | Inspect & runtime-override safety weights | Dynamic weight validator |
-| `/api/route` | `GET` | Route calculation + per-segment safety scoring | OSRM / TomTom + SafetyEngine |
-| `/api/safety-score` | `POST` | Custom polyline risk scoring | SafetyEngine |
-| `/api/hazards` | `GET` / `POST` | Spatial hazard lookup & user hazard reporting | Spatial HazardStore |
-| `/api/hospitals` | `GET` | Nearest hospitals ranked by live road ETA | Haversine + OSRM Matrix |
-| `/api/fatigue/session` | `POST` | Init Sleep Drive monitoring session | FatigueEngine |
-| `/api/fatigue/event` | `POST` | Ingest voice latency events & update fatigue level | FatigueEngine |
-| `/api/fatigue/chat` | `POST` | **Bidirectional** conversation: driver-first turns, intent classification, road context | Groq (`llama-3.3-70b-versatile`) / scripted |
-| `/api/fatigue/audio/transcribe` | `POST` | Speech-to-text via Sarvam **Saaras v3** (multipart audio) | Sarvam / browser STT fallback |
-| `/api/fatigue/tts` | `POST` | Text-to-speech via Sarvam **Bulbul v3** (base64 audio, cached) | Sarvam / browser TTS fallback |
-| `/api/emergency/activate` | `POST` | Trigger SOS mode, ranked hospitals & 60s countdown | Emergency Dispatch Engine |
+| Endpoint                        | Method         | Description                                                                             | Primary Engine / Provider                   |
+| :------------------------------ | :------------- | :-------------------------------------------------------------------------------------- | :------------------------------------------ |
+| `/api/health`                   | `GET`          | System health check                                                                     | Lightweight status ping                     |
+| `/api/config`                   | `GET` / `POST` | Inspect & runtime-override safety weights                                               | Dynamic weight validator                    |
+| `/api/route`                    | `GET`          | Route calculation + per-segment safety scoring                                          | OSRM / TomTom + SafetyEngine                |
+| `/api/safety-score`             | `POST`         | Custom polyline risk scoring                                                            | SafetyEngine                                |
+| `/api/hazards`                  | `GET` / `POST` | Spatial hazard lookup & user hazard reporting                                           | Spatial HazardStore                         |
+| `/api/hospitals`                | `GET`          | Nearest hospitals ranked by live road ETA                                               | OpenStreetMap/Overpass + OSRM               |
+| `/api/fatigue/session`          | `POST`         | Init Sleep Drive monitoring session                                                     | FatigueEngine                               |
+| `/api/fatigue/event`            | `POST`         | Ingest voice latency events & update fatigue level                                      | FatigueEngine                               |
+| `/api/fatigue/chat`             | `POST`         | **Bidirectional** conversation: driver-first turns, intent classification, road context | Groq (`llama-3.3-70b-versatile`) / scripted |
+| `/api/fatigue/audio/transcribe` | `POST`         | Speech-to-text via Sarvam **Saaras v3** (multipart audio)                               | Sarvam / browser STT fallback               |
+| `/api/fatigue/tts`              | `POST`         | Text-to-speech via Sarvam **Bulbul v3** (base64 audio, cached)                          | Sarvam / browser TTS fallback               |
+| `/api/emergency/activate`       | `POST`         | Trigger SOS mode, ranked hospitals & 60s countdown                                      | Emergency Dispatch Engine                   |
+| `/api/fatigue/chat`             | `POST`         | AI fatigue check-in conversation                                                        | Gemini 2.0 Flash / Scripted AI              |
+| `/api/emergency/activate`       | `POST`         | Trigger SOS mode, dynamic OSM hospitals ranked by road ETA & 60s countdown              | Overpass + OSRM + Emergency Dispatch Engine |
+| `/api/emergency/route`          | `GET`          | OSRM navigation route to the selected hospital (geometry, ETA, turn steps)              | OSRM (steps=true)                           |
 
 ---
 
 ## ⏱️ Performance Benchmarks & Timeouts
 
-| Component / Provider | Primary Provider | Fallback Provider | Target Timeout / Latency |
-| :--- | :--- | :--- | :--- |
-| **Routing Engine** | TomTom / OSRM | Deterministic Bezier Generator | `3.0s` timeout (`< 5ms` fallback) |
-| **Traffic Data** | TomTom Live Traffic | Spatial Speed Matrix | `4.0s` timeout (`< 2ms` fallback) |
-| **Weather Data** | OpenWeather API | Location-Seeded Demo Weather | `3.0s` timeout (`< 1ms` fallback) |
-| **AI Conversation** | Groq (`llama-3.3-70b-versatile`) | Scripted Conversational Assistant | `6.0s` timeout (`< 2ms` fallback) |
-| **Sarvam STT** | Saaras v3 (`saaras:v3`) | Browser SpeechRecognition | `15.0s` timeout |
-| **Sarvam TTS** | Bulbul v3 (`bulbul:v3`, voice `shubh`) | Browser SpeechSynthesis | `15.0s` timeout (cached phrases instant) |
-| **Hospital Road ETA** | Live OSRM Route Matrix | Geodesic Haversine Formula | `2.5s` timeout (`< 3ms` fallback) |
+| Component / Provider   | Primary Provider                                          | Fallback Provider                                                          | Target Timeout / Latency                 |
+| :--------------------- | :-------------------------------------------------------- | :------------------------------------------------------------------------- | :--------------------------------------- |
+| **Routing Engine**     | TomTom / OSRM                                             | Deterministic Bezier Generator                                             | `3.0s` timeout (`< 5ms` fallback)        |
+| **Traffic Data**       | TomTom Live Traffic                                       | Spatial Speed Matrix                                                       | `4.0s` timeout (`< 2ms` fallback)        |
+| **Weather Data**       | OpenWeather API                                           | Location-Seeded Demo Weather                                               | `3.0s` timeout (`< 1ms` fallback)        |
+| **AI Conversation**    | Groq (`llama-3.3-70b-versatile`)                          | Scripted Conversational Assistant                                          | `6.0s` timeout (`< 2ms` fallback)        |
+| **Sarvam STT**         | Saaras v3 (`saaras:v3`)                                   | Browser SpeechRecognition                                                  | `15.0s` timeout                          |
+| **Sarvam TTS**         | Bulbul v3 (`bulbul:v3`, voice `shubh`)                    | Browser SpeechSynthesis                                                    | `15.0s` timeout (cached phrases instant) |
+| **Hospital Road ETA**  | Live OSRM Route Matrix                                    | Geodesic Haversine Formula                                                 | `2.5s` timeout (`< 3ms` fallback)        |
+| **AI Conversation**    | Gemini 2.0 Flash                                          | Scripted Conversational Assistant                                          | `5.0s` timeout (`< 2ms` fallback)        |
+| **Hospital Discovery** | OpenStreetMap Overpass (`amenity=hospital`, 15 km radius) | Second Overpass mirror                                                     | `30s` timeout                            |
+| **Hospital Road ETA**  | Live OSRM Route Matrix                                    | — (never fabricated; unroutable hospitals show "Driving time unavailable") | `3.0s` per hospital (parallel)           |
 
 ---
 
@@ -48,6 +54,7 @@ The `SafetyEngine` calculates a 0-100 safety score per route segment based on 5 
 - 🚦 **Traffic Flow**: `10%` (Speed ratio vs free-flow speed)
 
 ### Risk Tier Thresholds
+
 - 🟢 **SAFE**: `80 – 100` (Color: `#22c55e`)
 - 🟡 **MODERATE**: `60 – 79` (Color: `#facc15`)
 - 🟠 **HIGH**: `45 – 59` (Color: `#f97316`)
@@ -80,7 +87,7 @@ SENSE (audio events) → UNDERSTAND (personal baseline) → PREDICT (temporal ri
   classifies the utterance (deterministic safety rules in `intent.py`
   override Groq; EMERGENCY > FATIGUE > ROUTE > SAFETY > MUSIC > LANGUAGE >
   GENERAL), attaches driver-state + road context, and returns `{reply,
-  source, intent, language, action}`.
+source, intent, language, action}`.
 - The LLM **proposes** an intent/action; the app **decides** whether it is
   permitted (`_action_for`) — the LLM can never trigger music, an emergency
   call, a route change or a fatigue-state change directly.
@@ -95,6 +102,7 @@ SENSE (audio events) → UNDERSTAND (personal baseline) → PREDICT (temporal ri
   frontend bundles, or git (`.env` is gitignored).
 
 **Production hardening** (`http.py`, `rate_limit.py`, `fatigue.py`)
+
 - **Retry with exponential backoff + full jitter**: every outbound call to
   Groq / Sarvam / ElevenLabs goes through `request_with_retry` (3 attempts,
   0.35s base, 2.5s max). Transient 408/429/5xx and network errors are retried
@@ -112,14 +120,15 @@ SENSE (audio events) → UNDERSTAND (personal baseline) → PREDICT (temporal ri
   ElevenLabs remains available as an alternative. The frontend plays any
   remote TTS source (sarvam/elevenlabs) and falls back to browser speech.
 
-| Driver state | Risk band (temporal estimate) | Typical trigger |
-| :--- | :--- | :--- |
-| `NORMAL` | risk < 0.18 | responses close to the driver's personal baseline |
-| `ATTENTION` | 0.18 – 0.32 | one or more responses noticeably slower than baseline |
-| `ELEVATED` | 0.32 – 0.50 | repeated delays / reduced engagement |
-| `HIGH_CONCERN` | ≥ 0.50 or prolonged silence | repeated severe delays or unexplained non-response |
+| Driver state   | Risk band (temporal estimate) | Typical trigger                                       |
+| :------------- | :---------------------------- | :---------------------------------------------------- |
+| `NORMAL`       | risk < 0.18                   | responses close to the driver's personal baseline     |
+| `ATTENTION`    | 0.18 – 0.32                   | one or more responses noticeably slower than baseline |
+| `ELEVATED`     | 0.32 – 0.50                   | repeated delays / reduced engagement                  |
+| `HIGH_CONCERN` | ≥ 0.50 or prolonged silence   | repeated severe delays or unexplained non-response    |
 
 **Key invariants**
+
 - **Personal baseline**: latency is judged against the driver's own rolling
   median, not a universal threshold. Baseline only updates from responses
   close to the driver's usual pace (a degrading driver's "normal" never drifts

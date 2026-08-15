@@ -126,11 +126,21 @@ export function HospitalMarker({ hospital }: { hospital: Hospital }) {
         <div className="min-w-[170px]">
           <div className="text-sm font-bold text-neutral-900">{hospital.name}</div>
           <div className="mt-1 text-[11px] text-neutral-500">
-            ETA <span className="font-bold text-neutral-900">{hospital.eta_min} min</span> ·{' '}
-            {hospital.distance_km} km
+            {hospital.eta_min != null ? (
+              <>
+                ETA <span className="font-bold text-neutral-900">{hospital.eta_min} min</span> ·{' '}
+                {hospital.distance_km} km
+              </>
+            ) : (
+              <span className="text-amber-600">Driving time unavailable</span>
+            )}
           </div>
           <div className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-neutral-400">
-            {hospital.eta_source === 'live' ? '● Live road ETA' : '○ Estimated ETA'}
+            {hospital.eta_source === 'live'
+              ? '● Live road ETA (OSRM)'
+              : hospital.eta_source === 'estimated'
+                ? '○ Estimated ETA'
+                : '○ No valid driving route'}
           </div>
         </div>
       </Popup>
