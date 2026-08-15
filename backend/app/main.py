@@ -59,6 +59,7 @@ from app.services.elevenlabs import elevenlabs_service
 from app.services.http import Log
 from app.services.groq import groq_service
 from app.services.intent import classify_intent, merge_intent, target_language_for
+from app.services.livekit import livekit_service
 from app.services.rate_limit import RateLimiter
 from app.services.safety_engine import SafetyEngine, overall_score
 from app.services.sarvam import sarvam_service
@@ -152,6 +153,7 @@ async def health() -> dict:
             "groq": "configured" if settings.has_groq else "scripted fallback",
             "sarvam": "configured" if settings.has_sarvam else "browser fallback",
             "elevenlabs": "configured" if settings.has_elevenlabs else "off",
+            "livekit": "configured" if settings.has_livekit else "off",
             "tts": settings.tts_provider,
         },
         "active_sessions": fatigue.session_count,
@@ -171,6 +173,7 @@ async def get_config() -> ConfigResponse:
         "sarvam_stt": settings.sarvam_stt_model if settings.has_sarvam else "unavailable",
         "sarvam_tts": settings.sarvam_tts_model if settings.has_sarvam else "unavailable",
         "elevenlabs_tts": settings.elevenlabs_voice_id if settings.has_elevenlabs else "unavailable",
+        "livekit_room": settings.livekit_room_name if settings.has_livekit else "unavailable",
         "languages": str(len(SUPPORTED_LANGUAGES)),
     }
     keys = [k for k, v in {
@@ -182,6 +185,7 @@ async def get_config() -> ConfigResponse:
         "GROQ_API_KEY": settings.groq_api_key,
         "SARVAM_API_KEY": settings.sarvam_api_key,
         "ELEVENLABS_API_KEY": settings.elevenlabs_api_key,
+        "LIVEKIT_API_KEY": settings.livekit_api_key,
     }.items() if v]
     return ConfigResponse(
         safety_weights=settings.safety_weights.as_dict(),
@@ -650,7 +654,7 @@ async def get_elevenlabs_token():
     """Fetch a signed URL for the ElevenLabs Conversational AI Web SDK."""
     if not settings.elevenlabs_api_key or not settings.elevenlabs_agent_id:
         raise HTTPException(status_code=400, detail="ElevenLabs credentials or Agent ID not configured")
-    
+
     import httpx
     async with httpx.AsyncClient() as client:
         try:
@@ -667,6 +671,31 @@ async def get_elevenlabs_token():
                 status_code=502,
                 detail="ElevenLabs token service unavailable — try again shortly.",
             ) from exc
+
+
+@app.post("/api/livekit/token")
+async def get_livekit_token(payload: dict | None = None):
+    """Issue a short-lived LiveKit room token for Sleep Drive's voice session."""
+    if not settings.has_livekit:
+        raise HTTPException(status_code=400, detail="LiveKit credentials are not configured")
+
+    body = payload or {}
+    identity = str(body.get("identity") or f"{settings.livekit_identity_prefix}-{int(time.time() * 1000)}")
+    room_name = str(body.get("room_name") or settings.livekit_room_name)
+    try:
+        token = livekit_service.create_token(identity=identity, room_name=room_name)
+        return {
+            "token": token,
+            "room_name": room_name,
+            "identity": identity,
+            "url": settings.livekit_url,
+            "provider": "livekit",
+        }
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # pragma: no cover - unexpected LiveKit token generation failure
+        Log.warn("livekit", f"token generation failed ({type(exc).__name__})")
+        raise HTTPException(status_code=502, detail="LiveKit token service unavailable") from exc
 
 # --------------------------------------------------------------------------
 # Emergency

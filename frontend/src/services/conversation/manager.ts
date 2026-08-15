@@ -809,7 +809,7 @@ export class ConversationManager {
     api
       .createFatigueSession({
         mode,
-        thresholds: this.deps.thresholds(),
+        thresholds: this.deps.thresholds() as unknown as Record<string, number>,
         language: this.language === 'auto' ? 'en-IN' : this.language,
       })
       .then((s) => {

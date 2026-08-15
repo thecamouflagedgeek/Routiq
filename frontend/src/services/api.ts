@@ -3,7 +3,11 @@ import type {
   DriverState,
   EmergencyResponse,
   EmergencyRoute,
+  FatigueChatRequest,
+  FatigueChatResponse,
+  FatigueEventType,
   FatigueState,
+  FatigueThresholds,
   GeocodeResult,
   Hazard,
   Hospital,
@@ -83,7 +87,23 @@ export const api = {
     return request<EmergencyRoute>(`/emergency/route?${q}${h}`)
   },
 
-  createFatigueSession(thresholds?: Record<string, number>): Promise<FatigueState> {
+  /**
+   * FIX: this previously took a single `thresholds` parameter but referenced
+   * a nonexistent `opts` variable in its body — a ReferenceError thrown
+   * synchronously (before any Promise was returned) every time this was
+   * called as `createFatigueSession({ mode, thresholds, language })` from
+   * ConversationManager.start(). Because the throw happened synchronously,
+   * it was NOT caught by the `.catch()` chained onto the call site — it blew
+   * straight up through start() as an uncaught exception, aborting session
+   * creation entirely. `sessionId` was then never set, so every later
+   * `/fatigue/event` call went out with an empty/invalid session_id, which
+   * is what the backend's 422 was actually rejecting.
+   */
+  createFatigueSession(opts?: {
+    mode?: 'live' | 'demo'
+    thresholds?: Record<string, number> | Partial<FatigueThresholds>
+    language?: string
+  }): Promise<FatigueState> {
     return request<FatigueState>('/fatigue/session', {
       method: 'POST',
       body: JSON.stringify({
@@ -181,6 +201,19 @@ export const api = {
 
   getElevenLabsToken(): Promise<{ signed_url: string }> {
     return request('/elevenlabs/token')
+  },
+
+  getLiveKitToken(payload?: { identity?: string; room_name?: string }): Promise<{
+    token: string
+    room_name: string
+    identity: string
+    url: string
+    provider: string
+  }> {
+    return request('/livekit/token', {
+      method: 'POST',
+      body: JSON.stringify(payload ?? {}),
+    })
   },
 
   getConfig(): Promise<{

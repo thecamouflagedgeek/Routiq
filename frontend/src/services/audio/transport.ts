@@ -418,22 +418,23 @@ export class CarBluetoothTransport implements AudioTransport {
 }
 
 import { createElevenLabsTransport } from './elevenLabsTransport'
+import { createLiveKitTransport } from './livekitTransport'
 
 /**
  * Composition root: swap to the car transport here in the native build.
  *
- * The primary voice stack is Groq (conversation) + Sarvam (STT/TTS) with
- * browser speech as input and browser-TTS fallback — see conversation/
- * manager.ts. The ElevenLabs Conversational agent transport is available as
- * an explicit opt-in (VITE_TRANSPORT=elevenlabs) for teams that run an agent;
- * it is NOT the default because it short-circuits the Groq/Sarvam pipeline.
+ * The default Sleep Drive transport remains browser-safe and deterministic.
+ * The LiveKit room-backed transport is available as an explicit opt-in so the
+ * app can move to a persistent realtime voice session without rewriting the
+ * fatigue engine or the rest of the product surface.
  */
-export function createAudioTransport(kind: 'browser' | 'car'): AudioTransport {
+export function createAudioTransport(kind: 'browser' | 'car' | 'livekit'): AudioTransport {
   if (kind === 'car') return new CarBluetoothTransport()
+  if (kind === 'livekit') return createLiveKitTransport()
   try {
-    if (import.meta.env.VITE_TRANSPORT === 'elevenlabs') {
-      return createElevenLabsTransport()
-    }
+    const transport = import.meta.env.VITE_TRANSPORT
+    if (transport === 'elevenlabs') return createElevenLabsTransport()
+    if (transport === 'livekit') return createLiveKitTransport()
   } catch {
     /* import.meta.env unavailable — default to the browser transport */
   }

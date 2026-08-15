@@ -51,13 +51,7 @@ export default function App() {
         <Emergency onGoDashboard={() => navigate("dashboard")} />
       )}
 
-      {route.page === "dashboard" && (
-        <Dashboard
-          onOpenEmergency={() => navigate("emergency")}
-          initialReport={route.report}
-          fatigue={fatigue}
-        />
-      )}
+      {route.page === "dashboard" && <Dashboard initialReport={route.report} />}
     </div>
   );
 }

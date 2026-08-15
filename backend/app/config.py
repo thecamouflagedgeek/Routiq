@@ -192,6 +192,14 @@ class Settings:
     elevenlabs_url: str = "https://api.elevenlabs.io/v1"
     elevenlabs_timeout: float = _env_float("ELEVENLABS_TIMEOUT", 20.0)
 
+    # --- LiveKit realtime voice session -------------------------------------
+    livekit_url: str = os.environ.get("LIVEKIT_URL", "")
+    livekit_api_key: str = os.environ.get("LIVEKIT_API_KEY", "")
+    livekit_api_secret: str = os.environ.get("LIVEKIT_API_SECRET", "")
+    livekit_room_name: str = os.environ.get("LIVEKIT_ROOM_NAME", "routiq-sleep-drive")
+    livekit_identity_prefix: str = os.environ.get("LIVEKIT_IDENTITY_PREFIX", "driver")
+    livekit_timeout: float = _env_float("LIVEKIT_TIMEOUT", 15.0)
+
     stt_provider: str = os.environ.get("STT_PROVIDER", "sarvam")
     tts_provider: str = os.environ.get("TTS_PROVIDER", "sarvam")
     # Cache deterministic TTS phrases (text+language -> base64 audio) to cut
@@ -230,6 +238,10 @@ class Settings:
     @property
     def has_elevenlabs(self) -> bool:
         return bool(self.elevenlabs_api_key)
+
+    @property
+    def has_livekit(self) -> bool:
+        return bool(self.livekit_url and self.livekit_api_key and self.livekit_api_secret)
 
     # --- Safety engine -------------------------------------------------------
     safety_weights: SafetyWeights = field(default_factory=SafetyWeights)

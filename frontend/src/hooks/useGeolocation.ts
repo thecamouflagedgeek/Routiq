@@ -23,6 +23,7 @@ export function useGeolocation() {
         (pos) => {
           const p = { lat: pos.coords.latitude, lon: pos.coords.longitude }
           setPosition(p)
+          setError(null)
           setLoading(false)
           resolve(p)
         },
@@ -39,10 +40,21 @@ export function useGeolocation() {
   useEffect(() => {
     if (watching.current) return
     watching.current = true
-    if (!('geolocation' in navigator)) return
+    if (!('geolocation' in navigator)) {
+      setError('Geolocation not available in this browser.')
+      return
+    }
     const id = navigator.geolocation.watchPosition(
-      (pos) => setPosition({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
-      () => {},
+      (pos) => {
+        setPosition({ lat: pos.coords.latitude, lon: pos.coords.longitude })
+        setError(null)
+      },
+      (err) => {
+        // Previously a silent no-op — errors (denied permission, timeout,
+        // unavailable) now surface so the UI can react instead of just
+        // showing a stuck "no GPS fix" with no explanation.
+        setError(err.message || 'Location unavailable')
+      },
       { enableHighAccuracy: true, maximumAge: 15000 },
     )
     return () => navigator.geolocation.clearWatch(id)

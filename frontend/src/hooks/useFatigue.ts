@@ -209,7 +209,7 @@ export function useFatigue(onGoEmergency?: () => void) {
 
   // ------------------------------------------------------------- transport
   useEffect(() => {
-    const t = createAudioTransport('browser')
+    const t = createAudioTransport('livekit')
     transportRef.current = t
     const offStatus = t.onStatus((s) => {
       setListening(s.listening)

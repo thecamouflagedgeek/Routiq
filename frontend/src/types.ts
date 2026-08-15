@@ -157,6 +157,7 @@ export type FatigueEventType =
   | 'tts_started'
   | 'tts_finished'
   | 'tts_interrupted'
+  | 'tts_failed'
   | 'silence_timeout'
   | 'music_permission_requested'
   | 'music_permission_granted'

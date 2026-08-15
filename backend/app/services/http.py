@@ -64,6 +64,7 @@ async def request_with_retry(
     *,
     headers: dict[str, str] | None = None,
     json: dict[str, Any] | None = None,
+    data: str | dict[str, Any] | None = None,
     files: dict[str, Any] | None = None,
     timeout: float,
     max_attempts: int = 3,
@@ -83,7 +84,7 @@ async def request_with_retry(
         attempt += 1
         try:
             async with httpx.AsyncClient(timeout=timeout) as client:
-                resp = await client.request(method, url, headers=headers, json=json, files=files)
+                resp = await client.request(method, url, headers=headers, json=json, data=data, files=files)
             if resp.status_code in RETRYABLE_STATUS and attempt < max_attempts:
                 delay = _backoff(base_delay, max_delay, attempt)
                 Log.warn(tag, f"retryable {resp.status_code} on attempt {attempt}/{max_attempts} — retrying in {delay:.2f}s")
