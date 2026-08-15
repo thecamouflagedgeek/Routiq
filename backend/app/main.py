@@ -179,6 +179,14 @@ geocode_svc = GeocodingProvider()
 async def geocode_location(q: str = Query(..., min_length=1)) -> list[GeocodeResult]:
     return await geocode_svc.geocode(q)
 
+
+@app.get("/api/reverse-geocode", response_model=GeocodeResult)
+async def reverse_geocode_location(
+    lat: float = Query(ge=-90, le=90),
+    lon: float = Query(ge=-180, le=180),
+) -> GeocodeResult:
+    return await geocode_svc.reverse_geocode(lat, lon)
+
 # --------------------------------------------------------------------------
 # Hazards
 # --------------------------------------------------------------------------

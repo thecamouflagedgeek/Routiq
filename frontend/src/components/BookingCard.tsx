@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { ArrowRight, Loader2, ShieldCheck } from 'lucide-react'
+import { ArrowRight, Clock, Navigation } from 'lucide-react'
 import type { RouteResponse } from '../types'
-import { DataBadge, RiskBadge } from './ui'
+import { RiskBadge } from './ui'
 
 interface Props {
   route: RouteResponse | null
@@ -23,64 +23,67 @@ export function BookingCard({ route, loading, onPlanRoute, onShowSegments, expan
         boxShadow: 'var(--shadow-lg)',
       }}
     >
-      {/* Top status row */}
-      {route && (
+      {/* Top weather row (if weather exists) */}
+      {route?.weather && (
         <div className="mb-3 flex items-center justify-between">
-          <div className="flex items-center gap-1.5">
-            <span className="flex h-5 w-5 items-center justify-center rounded-full" style={{ background: 'rgba(249,115,22,0.12)' }}>
-              <ShieldCheck size={11} style={{ color: 'var(--orange)' }} />
-            </span>
-            <span className="text-[11px] font-semibold" style={{ color: 'var(--text-3)' }}>Routiq SafeRoute</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            {route.weather && (
-              <span
-                className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold"
-                style={{ border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--text-3)' }}
-              >
-                {route.weather.main === 'Clear' ? '☀️' : route.weather.main === 'Rain' ? '🌧️' : '☁️'} {route.weather.temp_c}°C
-              </span>
-            )}
-            <DataBadge source={route.source} />
-          </div>
+          <span className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: 'var(--text-3)' }}>
+            <Navigation size={13} className="text-blue-500" /> Best Route
+          </span>
+          <span
+            className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-semibold"
+            style={{ border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--text-3)' }}
+          >
+            {route.weather.main === 'Clear' ? '☀️' : route.weather.main === 'Rain' ? '🌧️' : '☁️'} {route.weather.temp_c}°C
+          </span>
         </div>
       )}
 
-      {/* Stats row */}
+      {/* Google Maps Style Route Stats Card */}
       <div
-        className="grid grid-cols-2 gap-3 rounded-xl p-3"
+        className="rounded-xl p-3.5"
         style={{ background: 'var(--bg-2)', border: '1px solid var(--border-2)' }}
       >
-        <div>
-          <div className="text-[10px] font-extrabold uppercase tracking-widest" style={{ color: 'var(--text-4)' }}>Distance</div>
-          <div className="mt-0.5 text-lg font-black" style={{ color: 'var(--text)' }}>
-            {route ? `${route.distance_km.toFixed(1)} km` : '— km'}
+        <div className="flex items-baseline justify-between">
+          <div>
+            <div className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wider" style={{ color: 'var(--text-4)' }}>
+              <Clock size={11} /> Estimated Time
+            </div>
+            <div className="mt-1 text-2xl font-black tracking-tight" style={{ color: 'var(--text)' }}>
+              {route ? `${route.duration_min} min` : '— min'}
+            </div>
+          </div>
+
+          <div className="text-right">
+            <div className="text-[10px] font-extrabold uppercase tracking-wider" style={{ color: 'var(--text-4)' }}>
+              Distance
+            </div>
+            <div className="mt-1 text-xl font-bold" style={{ color: 'var(--text-2)' }}>
+              {route ? `${route.distance_km.toFixed(1)} km` : '— km'}
+            </div>
           </div>
         </div>
 
-        <div>
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-extrabold uppercase tracking-widest" style={{ color: 'var(--text-4)' }}>
-              {showSafetyDetails ? 'Safety' : 'Time'}
+        {route && (
+          <div className="mt-2.5 flex items-center justify-between border-t pt-2" style={{ borderColor: 'var(--border)' }}>
+            <span className="text-[11px] font-medium" style={{ color: 'var(--text-3)' }}>
+              Fastest route · {route.segments.length} segments
             </span>
             <button
               onClick={() => setShowSafetyDetails((v) => !v)}
-              className="text-[9px] font-bold cursor-pointer hover:underline"
+              className="text-[10px] font-bold cursor-pointer hover:underline"
               style={{ color: 'var(--orange)' }}
             >
-              {showSafetyDetails ? '← Time' : 'Safety →'}
+              {showSafetyDetails ? 'Hide Score' : 'Safety Score'}
             </button>
           </div>
-          <div className="mt-0.5 text-lg font-black" style={{ color: 'var(--text)' }}>
-            {showSafetyDetails && route ? (
-              <span className="flex items-center gap-1 text-emerald-500">
-                <ShieldCheck size={14} /> {route.overall_score}/100
-              </span>
-            ) : (
-              route ? `${route.duration_min} min` : '— min'
-            )}
+        )}
+
+        {showSafetyDetails && route && (
+          <div className="mt-2 rounded-lg p-2 text-xs font-semibold flex items-center justify-between" style={{ background: 'rgba(34,197,94,0.08)', color: '#22c55e' }}>
+            <span>Route Safety Rating</span>
+            <span className="font-black text-sm">{route.overall_score}/100</span>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Footer */}
@@ -88,9 +91,6 @@ export function BookingCard({ route, loading, onPlanRoute, onShowSegments, expan
         <div className="mt-3 flex items-center justify-between" style={{ borderTop: '1px solid var(--border)', paddingTop: '10px' }}>
           <div className="flex items-center gap-2">
             <RiskBadge level={route.overall_risk} />
-            <span className="text-[11px] font-medium" style={{ color: 'var(--text-3)' }}>
-              {route.duration_min} min · {route.segments.length} segments
-            </span>
           </div>
           <button
             onClick={onShowSegments}

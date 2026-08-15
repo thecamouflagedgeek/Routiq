@@ -17,6 +17,7 @@ import { DriveHUD } from '../components/DriveHUD'
 import { HazardForm } from '../components/HazardForm'
 import { MapView } from '../components/map/MapView'
 import { PlaceAutocomplete } from '../components/PlaceAutocomplete'
+import { SavedPlaces } from '../components/SavedPlaces'
 import { SegmentPanel } from '../components/SegmentPanel'
 import { SectionLabel } from '../components/ui'
 import { DEFAULT_END, DEFAULT_START, RISK_META, SEVERITY_META } from '../config'
@@ -101,13 +102,20 @@ export function Dashboard({
   }, [initialReport])
 
   const onPickMapLocation = useCallback(
-    (lat: number, lon: number) => {
+    async (lat: number, lon: number) => {
       if (pickMode === 'start' || pickMode === 'end') {
-        const place: Place = {
-          label: `Pinned (${lat.toFixed(4)}, ${lon.toFixed(4)})`,
-          sublabel: 'Map pin',
-          lat, lon, city: '',
+        let label = `Pinned (${lat.toFixed(4)}, ${lon.toFixed(4)})`
+        let sublabel = 'Map location'
+        try {
+          const rev = await api.reverseGeocode(lat, lon)
+          if (rev?.formattedAddress) {
+            label = rev.name || rev.formattedAddress
+            sublabel = rev.formattedAddress
+          }
+        } catch (e) {
+          console.error('Reverse geocode error:', e)
         }
+        const place: Place = { label, sublabel, lat, lon, city: 'Mumbai', formattedAddress: sublabel }
         if (pickMode === 'start') { setStart(place); if (end) loadRoute(place, end) }
         else { setEnd(place); if (start) loadRoute(start, place) }
         setPickMode(null)
@@ -124,7 +132,18 @@ export function Dashboard({
     async (which: 'start' | 'end') => {
       const fix = await geo.getPosition()
       if (!fix) return
-      const place: Place = { label: 'My location', sublabel: 'Current position', lat: fix.lat, lon: fix.lon, city: '' }
+      let label = 'My location'
+      let sublabel = 'Current GPS position'
+      try {
+        const rev = await api.reverseGeocode(fix.lat, fix.lon)
+        if (rev?.formattedAddress) {
+          label = rev.name || 'My location'
+          sublabel = rev.formattedAddress
+        }
+      } catch (e) {
+        console.error('Reverse geocode error:', e)
+      }
+      const place: Place = { label, sublabel, lat: fix.lat, lon: fix.lon, city: 'Mumbai', formattedAddress: sublabel }
       if (which === 'start') { setStart(place); if (end) loadRoute(place, end) }
       else { setEnd(place); if (start) loadRoute(start, place) }
     },
@@ -267,40 +286,13 @@ export function Dashboard({
               </div>
             </div>
 
-            {/* 5. Live Road Hazards Widget */}
-            {hazards.length > 0 && (
-              <div
-                className="rounded-2xl p-3"
-                style={{ background: 'var(--bg-2)', border: '1px solid var(--border)' }}
-              >
-                <div className="mb-2 flex items-center justify-between">
-                  <SectionLabel>Live road hazards</SectionLabel>
-                  <button
-                    onClick={() => openHazardForm()}
-                    className="flex cursor-pointer items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold transition-colors"
-                    style={{ background: 'var(--surface)', color: 'var(--text-2)', border: '1px solid var(--border)' }}
-                  >
-                    <Plus size={12} /> Report
-                  </button>
-                </div>
-                <ul className="space-y-1.5">
-                  {hazards.slice(0, 3).map((h) => (
-                    <li key={h.id} className="flex items-center justify-between gap-2 text-xs">
-                      <span className="flex min-w-0 items-center gap-2">
-                        <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: SEVERITY_META[h.severity].color }} />
-                        <span className="truncate font-semibold" style={{ color: 'var(--text)' }}>{h.description}</span>
-                        {h.source === 'user' && (
-                          <span className="rounded px-1.5 py-0.5 text-[9px] font-extrabold text-white" style={{ background: 'var(--text)' }}>YOU</span>
-                        )}
-                      </span>
-                      <span className="shrink-0 text-[10px] font-medium" style={{ color: 'var(--text-4)' }}>
-                        {h.distance_m != null ? `${Math.round(h.distance_m)} m` : ''}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
+            {/* 5. Saved Places (Home & Work) Widget */}
+            <SavedPlaces
+              onSelectPlace={(place) => {
+                setEnd(place)
+                if (start) loadRoute(start, place)
+              }}
+            />
           </div>
         </div>
       )}
@@ -338,6 +330,14 @@ export function Dashboard({
             </div>
           </div>
 
+          {/* Saved Places (Home & Work) Card */}
+          <SavedPlaces
+            onSelectPlace={(place) => {
+              setEnd(place)
+              if (start) loadRoute(start, place)
+            }}
+          />
+
           {/* Route Booking Stats Card */}
           <BookingCard
             route={route}
@@ -357,38 +357,6 @@ export function Dashboard({
             >
               <Play size={14} fill="white" /> START DEMO DRIVE
             </button>
-          )}
-
-          {/* Live Road Hazards Card */}
-          {hazards.length > 0 && (
-            <div
-              className="rounded-2xl p-3 shadow-md border"
-              style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
-            >
-              <div className="mb-2 flex items-center justify-between">
-                <SectionLabel>Live road hazards</SectionLabel>
-                <button
-                  onClick={() => openHazardForm()}
-                  className="flex cursor-pointer items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold transition-colors"
-                  style={{ background: 'var(--bg-2)', color: 'var(--text-2)', border: '1px solid var(--border)' }}
-                >
-                  <Plus size={12} /> Report
-                </button>
-              </div>
-              <ul className="space-y-1.5">
-                {hazards.slice(0, 3).map((h) => (
-                  <li key={h.id} className="flex items-center justify-between gap-2 text-xs">
-                    <span className="flex min-w-0 items-center gap-2">
-                      <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: SEVERITY_META[h.severity].color }} />
-                      <span className="truncate font-semibold" style={{ color: 'var(--text)' }}>{h.description}</span>
-                    </span>
-                    <span className="shrink-0 text-[10px] font-medium" style={{ color: 'var(--text-4)' }}>
-                      {h.distance_m != null ? `${Math.round(h.distance_m)} m` : ''}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
           )}
         </div>
       )}

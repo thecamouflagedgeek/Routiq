@@ -97,37 +97,54 @@ export function PlaceAutocomplete({
     <div ref={boxRef} className="relative">
       <button
         onClick={() => setOpen((o) => !o)}
-        className={`flex w-full cursor-pointer items-center gap-2.5 rounded-full border bg-white px-4 py-3 text-left shadow-sm transition-all ${
+        className={`flex w-full cursor-pointer items-center gap-2.5 rounded-full border px-4 py-3 text-left shadow-sm transition-all ${
           picking
             ? 'border-orange-400 ring-2 ring-orange-100'
-            : 'border-neutral-200 hover:border-neutral-300'
+            : 'hover:opacity-90'
         }`}
+        style={{
+          background: 'var(--surface)',
+          borderColor: 'var(--border)',
+          color: 'var(--text)',
+        }}
       >
         {variant === 'start' ? (
           <MapPin size={16} className="shrink-0 text-orange-500" />
         ) : (
           <Navigation size={16} className="shrink-0 text-orange-500" />
         )}
-        <span className={`flex-1 truncate text-xs font-bold ${value ? 'text-neutral-900' : 'text-neutral-400'}`}>
+        <span className="flex-1 truncate text-xs font-bold" style={{ color: value ? 'var(--text)' : 'var(--text-3)' }}>
           {picking ? 'Click anywhere on the map…' : value?.label || placeholder}
         </span>
-        {picking ? <X size={14} className="text-orange-500" /> : <ChevronDown size={14} className="text-neutral-400" />}
+        {picking ? <X size={14} className="text-orange-500" /> : <ChevronDown size={14} style={{ color: 'var(--text-3)' }} />}
       </button>
 
       {open && (
-        <div className="slide-in-up absolute left-0 right-0 top-full z-[1300] mt-2 overflow-hidden rounded-2xl border border-neutral-200 bg-white/95 shadow-2xl backdrop-blur-md">
-          <div className="border-b border-neutral-100 p-2">
+        <div
+          className="slide-in-up absolute left-0 right-0 top-full z-[1300] mt-2 overflow-hidden rounded-2xl border shadow-2xl backdrop-blur-md"
+          style={{
+            background: 'var(--surface)',
+            borderColor: 'var(--border)',
+            boxShadow: 'var(--shadow-xl)',
+          }}
+        >
+          <div className="p-2.5" style={{ borderBottom: '1px solid var(--border)' }}>
             <div className="relative flex items-center">
               <input
                 autoFocus
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search Mumbai location (e.g., Malad, Bandra, Andheri)…"
-                className="w-full rounded-xl bg-neutral-100 px-3 py-2.5 text-xs font-semibold outline-none placeholder:text-neutral-400"
+                placeholder="Search Mumbai location (e.g., Dadar, Bandra, BKC)…"
+                className="w-full rounded-xl px-3.5 py-2.5 text-xs font-bold outline-none border transition-all"
+                style={{
+                  background: 'var(--bg-2)',
+                  color: 'var(--text)',
+                  borderColor: 'var(--border)',
+                }}
               />
               {loading && <Loader2 size={14} className="absolute right-3 animate-spin text-orange-500" />}
             </div>
-            {error && <div className="mt-1 px-2 text-[10px] font-medium text-amber-600">{error}</div>}
+            {error && <div className="mt-1.5 px-2 text-[10px] font-semibold text-amber-500">{error}</div>}
           </div>
 
           <div className="max-h-64 overflow-y-auto p-1.5 slim-scroll">
@@ -139,32 +156,37 @@ export function PlaceAutocomplete({
                   setOpen(false)
                   setQuery('')
                 }}
-                className="flex w-full cursor-pointer items-center gap-2.5 rounded-xl px-3 py-2.5 text-left hover:bg-neutral-100 transition-colors"
+                className="flex w-full cursor-pointer items-center gap-2.5 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-orange-500/10"
               >
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-neutral-600">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full" style={{ background: 'var(--bg-2)', color: 'var(--text-2)' }}>
                   {variant === 'start' ? <MapPin size={14} /> : <Navigation size={14} />}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-xs font-bold text-neutral-900">{p.sublabel || p.name || p.label}</span>
-                  <span className="block truncate text-[10px] font-medium text-neutral-500">{p.formattedAddress || p.label}</span>
+                  <span className="block truncate text-xs font-bold" style={{ color: 'var(--text)' }}>
+                    {p.name || p.sublabel || p.label}
+                  </span>
+                  <span className="block truncate text-[10px] font-medium" style={{ color: 'var(--text-3)' }}>
+                    {p.formattedAddress || p.label}
+                  </span>
                 </span>
               </button>
             ))}
 
             {!loading && displayList.length === 0 && (
-              <div className="px-3 py-4 text-center text-xs font-medium text-neutral-400">
-                No matching locations in Mumbai
+              <div className="px-3 py-4 text-center text-xs font-medium" style={{ color: 'var(--text-3)' }}>
+                No matching locations found in Mumbai
               </div>
             )}
           </div>
 
-          <div className="border-t border-neutral-100 p-1.5 bg-neutral-50/50">
+          <div className="p-1.5" style={{ borderTop: '1px solid var(--border)', background: 'var(--bg-2)' }}>
             <button
               onClick={() => {
                 onUseMyLocation()
                 setOpen(false)
               }}
-              className="flex w-full cursor-pointer items-center gap-2.5 rounded-xl px-3 py-2 text-left text-xs font-bold text-neutral-700 hover:bg-neutral-100"
+              className="flex w-full cursor-pointer items-center gap-2.5 rounded-xl px-3 py-2 text-left text-xs font-bold transition-colors hover:bg-blue-500/10"
+              style={{ color: 'var(--text)' }}
             >
               <Crosshair size={14} className="text-blue-500" /> Use my current location
             </button>
@@ -173,7 +195,8 @@ export function PlaceAutocomplete({
                 onPickOnMap()
                 setOpen(false)
               }}
-              className="flex w-full cursor-pointer items-center gap-2.5 rounded-xl px-3 py-2 text-left text-xs font-bold text-neutral-700 hover:bg-neutral-100"
+              className="flex w-full cursor-pointer items-center gap-2.5 rounded-xl px-3 py-2 text-left text-xs font-bold transition-colors hover:bg-orange-500/10"
+              style={{ color: 'var(--text)' }}
             >
               <MapPin size={14} className="text-orange-500" /> Choose location on map
             </button>
