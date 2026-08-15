@@ -143,9 +143,14 @@ class Settings:
     ai_api_key: str = os.environ.get("AI_API_KEY", "")
     traffic_api_key: str = os.environ.get("TRAFFIC_API_KEY", "")
     weather_api_key: str = os.environ.get("WEATHER_API_KEY", "")
+    geoapify_api_key: str = os.environ.get("GEOAPIFY_API_KEY", "")
 
     osrm_url: str = os.environ.get("OSRM_URL", "https://router.project-osrm.org")
     osrm_timeout: float = _env_float("OSRM_TIMEOUT", 3.0)
+
+    # Geoapify (Places + Routing + Matrix) — much faster than public OSRM/Overpass
+    geoapify_url: str = "https://api.geoapify.com"
+    geoapify_timeout: float = _env_float("GEOAPIFY_TIMEOUT", 5.0)
 
     # Overpass (OpenStreetMap) hospital discovery — mirrors tried in order.
     # The public API rate-limits/queues, so we rotate through several mirrors
@@ -214,6 +219,10 @@ class Settings:
     @property
     def has_routing(self) -> bool:
         return bool(self.routing_api_key)
+
+    @property
+    def has_geoapify(self) -> bool:
+        return bool(self.geoapify_api_key)
 
     @property
     def has_traffic(self) -> bool:
