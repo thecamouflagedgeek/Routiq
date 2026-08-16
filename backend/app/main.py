@@ -135,7 +135,7 @@ allowed_origins = [
     origin.strip()
     for origin in (
         os.environ.get("FRONTEND_URL", "")
-        + ",http://localhost:5173,http://127.0.0.1:5173,https://routiq-o2j2.onrender.com"
+        + ",http://localhost:5173,http://127.0.0.1:5173,https://routiq-chi.vercel.app,https://routiq-o2j2.onrender.com"
     ).split(",")
     if origin.strip()
 ]
