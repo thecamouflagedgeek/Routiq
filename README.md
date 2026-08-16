@@ -1,127 +1,240 @@
-# 🛡️ RoadSafe AI — Intelligent Road Safety & Mobility Platform
+# Routiq 🚗
 
-An AI-powered mobility application combining high-end **Uber-inspired UI design** with real-time road risk scoring, conversational fatigue detection, and automated emergency response.
+<img src="frontend/public/routiqlogo.png" alt="Routiq logo" width="160" />
 
----
+Built by Team Deoncodes
 
-## 🌟 Key Features
+Routiq is a road-safety intelligence platform that helps drivers understand route risk, detect fatigue early, and respond faster during emergencies.
 
-1. **Uber-Inspired Design System**: Clean light vector map canvas, rounded floating header navigation (`Ride`, `Drive`, `Emergency`, `More`), and floating bottom ride statistics cards (`DISTANCE`, `CHARGES`, `SAFETY SCORE`, `BOOK NOW`).
-2. **Mumbai Geocoding Autocomplete**: Real location search biased to Mumbai, Maharashtra, India (`Malad`, `Bandra`, `Andheri`, `Borivali`, `Dadar`, `Goregaon`, `Kandivali`, etc.) powered by OSM Nominatim & Photon services with graceful fallbacks.
-3. **Real Road Routing & Live Status Badges**: Live road routes from TomTom / OSRM routing providers with explicit `LIVE ROUTE` and `DEMO ROUTE` status indicators.
-4. **Deterministic Segment-Level Safety Engine**: Divides routes into ~750m segments and calculates weighted safety scores (0–100) based on Hazards (30%), Lighting (20%), Accidents (25%), Road Surface (15%), and Traffic (10%). Segments dynamically change color on Leaflet maps (`Green` = SAFE, `Yellow` = MODERATE, `Orange` = HIGH, `Red` = CRITICAL) with clickable risk factor breakdown drawers.
-5. **Sleep Drive Conversational Engagement Engine**: A closed-loop, event-driven driver-awareness system. It learns the driver's **personal response baseline** (rolling latency median), temporally aggregates interaction signals (latency, silence, speech confidence) into an explainable state — `NORMAL → ATTENTION → ELEVATED → HIGH_CONCERN` — with **risk kept separate from confidence**, audio failures never counted as fatigue, cooldown-paced escalation like a considerate passenger, a deterministic **demo sequence**, and a clean driver-state API for the Dashboard's contextual-risk fusion widget.
-
-   **Bidirectional & multilingual**: a `ConversationManager` (frontend `services/conversation/`) owns turn-taking, **barge-in** (the driver can interrupt Routiq mid-sentence), music permission (never auto-plays), language preference + mid-session switching, and quiet monitoring. **Groq** (`llama-3.3-70b-versatile`, backend-only key) provides conversational reasoning + semantic intent; deterministic safety rules in `app/services/intent.py` always override it (`EMERGENCY > FATIGUE > ROUTE > SAFETY > MUSIC > LANGUAGE > GENERAL`) and the LLM can only _propose_ actions the app permits. **Sarvam** powers STT (Saaras v3) and natural Indian-voice TTS (Bulbul v3, cached) across 10 Indian languages + Indian English, including code-mixed speech — with browser fallbacks throughout. Live voice runs through an `AudioTransport` abstraction (browser mic today, car Bluetooth later).
-
-   **Production hardening**: outbound AI calls retry with exponential backoff + jitter (`http.py`), AI endpoints are rate-limited per client IP (`rate_limit.py`), the TTS phrase cache and the in-memory session store are bounded (LRU/TTL + cap), Sarvam is the default TTS provider, all client API calls abort on timeout, and live mode runs a risk-adaptive **check-in scheduler** (quiet monitoring → 60–120s healthy interval → shorter intervals as risk rises) so proactive prompts fire only when the cooldown has elapsed and the audio path is healthy. Keys stay backend-only — verified absent from responses, logs, and the built bundle.
-
-6. **One-Tap Emergency SOS Response**: Simulated crash detection with a 60-second confirmation countdown, GPS position, top 6 nearest hospitals ranked by actual driving ETA, location sharing, and emergency dial buttons.
-7. **Sleep Drive Conversational Fatigue Engine**: Real-time voice latency detection using Web Speech API with escalation tiers (`NORMAL`, `MILD`, `ELEVATED`, `SEVERE`/`CRITICAL`) and `AI ACTIVE` / `DEMO ASSISTANT` badges.
-8. **One-Tap Emergency SOS Response**: Simulated crash detection with a 60-second confirmation countdown, real browser GPS, hospitals discovered live from OpenStreetMap/Overpass around your actual location (15 km radius), top 6 ranked by real OSRM road ETA, automatic OSRM navigation route drawn on the map with live turn-by-turn instructions, live GPS re-routing when you deviate, location sharing, and emergency dial buttons.
+It combines three core layers:
+- safety-aware routing
+- conversational driver fatigue monitoring
+- emergency response assistance
 
 ---
 
-## 🚀 How to Run the Project
+## Why this exists
 
-### Prerequisites
+Most navigation tools optimize for travel time. Routiq optimizes for safety and decision support.
 
-- **Node.js** (v18 or higher)
-- **Python** (v3.9 or higher)
-- **npm** or **yarn**
+Instead of only showing a route, it helps users answer:
+- Is this route safe?
+- Why is it risky?
+- Is the driver getting fatigued?
+- What should happen if an emergency occurs?
 
 ---
 
-### 1. Backend Setup (FastAPI)
+## What it does
 
-Navigate to the `backend` directory:
+### 1. Explainable route safety
+- Scores routes by risk level
+- Breaks down route safety segment by segment
+- Highlights high-risk corridors, junctions, and blackspots
+- Shows the reason behind a risky section instead of just a number
+
+### 2. Sleep Drive
+- Tracks conversational response patterns
+- Measures response latency and engagement quality
+- Estimates fatigue state from interaction signals
+- Escalates warnings progressively instead of reacting to one event alone
+
+### 3. Emergency response workflow
+- Uses live GPS context
+- Finds nearby hospitals dynamically
+- Ranks them based on driving ETA
+- Shows a route to the best available option
+- Helps accelerate emergency response procedures
+
+---
+
+## Architecture
+
+<div align="center">
+  <div style="position: relative; display: inline-block;">
+    <img src="frontend/public/Gemini_Generated_Image_u62b5pu62b5pu62b1.png" alt="Routiq architecture diagram" width="1200" />
+    <div style="position: absolute; top: 20px; right: 18px; display: flex; gap: 8px;">
+      <div style="width: 38px; height: 38px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.25); background: rgba(24, 28, 36, 0.8); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 18px;">↺</div>
+      <div style="width: 38px; height: 38px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.25); background: rgba(24, 28, 36, 0.8); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 18px;">⎘</div>
+    </div>
+    <div style="position: absolute; right: 18px; bottom: 20px; width: 84px; height: 146px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.22); background: rgba(20, 24, 31, 0.72); display: flex; flex-direction: column; align-items: center; justify-content: space-evenly;">
+      <div style="width: 30px; height: 30px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 18px;">+</div>
+      <div style="width: 30px; height: 30px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 18px;">−</div>
+      <div style="width: 30px; height: 30px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 18px;">◁</div>
+      <div style="width: 30px; height: 30px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 18px;">▷</div>
+    </div>
+  </div>
+</div>
+
+This keeps the app split into clean concerns:
+- frontend for interaction and UI
+- backend for logic and orchestration
+- data-driven safety and routing intelligence behind the API
+
+---
+
+## Tech stack
+
+### Frontend
+- React
+- TypeScript
+- Vite
+- Tailwind CSS
+
+### Backend
+- Python
+- FastAPI
+- Pydantic
+
+### Intelligence layer
+- route safety scoring
+- fatigue monitoring logic
+- emergency decision support
+- external AI / voice services when enabled
+
+> The project is designed around core product functionality, not around exposing the underlying third-party resource stack in the user-facing docs.
+
+---
+
+## Project structure
+
+```text
+Routiq/
+├── frontend/
+│   ├── src/
+│   ├── public/
+│   ├── package.json
+│   └── vite.config.ts
+├── backend/
+│   ├── app/
+│   ├── tests/
+│   ├── requirements.txt
+│   └── .env.example
+├── README.md
+├── QUICK_START.md
+├── TROUBLESHOOTING.md
+└── ...
+```
+
+---
+
+## Quick start
+
+### 1. Backend
 
 ```bash
 cd backend
-```
-
-Install Python dependencies:
-
-```bash
+python -m venv venv
+# Windows
+venv\Scripts\activate
+# macOS / Linux
+# source venv/bin/activate
 pip install -r requirements.txt
-```
-
-Create a `.env` file (optional for API keys like Gemini, TomTom, OpenWeather):
-
-```env
-ROUTING_API_KEY=
-TRAFFIC_API_KEY=
-WEATHER_API_KEY=
-AI_API_KEY=
-```
-
-Start the backend server:
-
-```bash
 uvicorn app.main:app --reload --port 8000
 ```
 
-The API will run at `http://localhost:8000`. You can test API endpoints at `http://localhost:8000/docs`.
-
----
-
-### 2. Frontend Setup (React + Vite + TypeScript)
-
-In a new terminal, navigate to the `frontend` directory:
+### 2. Frontend
 
 ```bash
 cd frontend
-```
-
-Install frontend dependencies:
-
-```bash
 npm install
-```
-
-Start the Vite development server:
-
-```bash
 npm run dev
 ```
 
-Open `http://localhost:5173` in your browser.
+### 3. Local environment
+
+Frontend:
+
+```env
+VITE_API_URL=http://localhost:8000
+```
+
+Production:
+
+```env
+VITE_API_URL=https://routiq-o2j2.onrender.com
+```
 
 ---
 
-## 🧪 Verified 22-Step Test Flow
+## Deployment notes
 
-Follow this step-by-step flow to test all features:
-
-1. **Search Pickup Location**: Type `"Malad"` in the pickup input.
-2. **Verify Results**: Mumbai locations appear (`Malad West, Mumbai, Maharashtra, India`).
-3. **Select Pickup**: Click `Malad West`.
-4. **Select Destination**: Type and select `"Bandra West"` or `"Santa Monica"`.
-5. **Real Route Rendered**: The real street route appears on the light map canvas.
-6. **Route Segmentation**: Route is split into distinct ~750m road segments.
-7. **Deterministic Safety Scores**: Each segment receives a deterministic 0–100 safety score.
-8. **Multi-Color Polylines**: Segments visibly display colors: Green (`SAFE`), Yellow (`MODERATE`), Orange (`HIGH`), Red (`CRITICAL`).
-9. **Inspect Risky Segment**: Click on any orange or red route segment.
-10. **Factor Breakdown Panel**: View the breakdown drawer showing exact Hazard, Lighting, Accident, Road Quality, and Traffic scores.
-11. **Start Sleep Drive**: Click `Drive` in the top navbar and press **Start Sleep Drive**.
-12. **Assistant Prompt**: The assistant asks a voice/text check-in question.
-13. **Speak/Type Response**: Answer the question.
-14. **Latency Measurement**: View measured response latency in seconds (`NORMAL` ≤ 2.0s).
-15. **Simulate Delay**: Delay your response or click **Reply after 6s delay**.
-16. **Fatigue Escalation**: Observe the state escalate (`NORMAL` → `CAUTION` → `ESCALATE`).
-17. **Simulate Collision**: Navigate to `Emergency` tab and click **SIMULATE CRASH**.
-18. **Confirmation Modal**: Potential collision modal opens with a 60-second confirmation timer.
-19. **Activate Response**: Tap **Activate Emergency Response** — the browser requests your real GPS location.
-20. **Dynamic Hospital Discovery**: Live OpenStreetMap/Overpass query finds real hospitals around your GPS position (15 km radius) — no hardcoded list.
-21. **Road ETA Ranking**: Top 6 hospitals rank by real OSRM road ETA (e.g. `8 min`) — not straight-line distance.
-22. **Auto Navigation**: The fastest reachable hospital is selected and a real OSRM route is drawn on the map with distance, ETA, and the next turn instruction.
-23. **One-Tap Actions**: Test **Call Emergency** and **Share Location** buttons.
-
-> 💡 **Dev GPS override**: If the browser can't provide a GPS fix (e.g. non-HTTPS local testing), set `VITE_DEV_LOCATION="lat,lon"` in `frontend/.env` to simulate a location for development — it is never used when a real GPS fix exists.
+- Backend is intended to run as a FastAPI service
+- Frontend can be deployed separately to Vercel or similar hosting
+- Set the frontend environment value to the deployed backend URL when shipping
 
 ---
 
-## 🛠️ Tech Stack Overview
+## Demo flow
 
-- **Frontend**: React 19, TypeScript, Vite, Tailwind CSS v4, Leaflet, React-Leaflet v5, Lucide Icons, Web Speech API.
-- **Backend**: Python, FastAPI, Uvicorn, Pydantic, HTTPX, OSRM / TomTom Routing, OpenWeather, Groq (`llama-3.3-70b-versatile`), Sarvam (Saaras v3 STT / Bulbul v3 TTS), ElevenLabs (optional).
+1. Open the app and select a route
+2. View segment-wise safety risk on the map
+3. Start Sleep Drive and observe conversational fatigue signals
+4. Trigger the emergency flow
+5. Review nearby hospital options and route guidance
+
+---
+
+## Team
+
+Built by Team Deoncodes
+
+Part of the Devfolio Hackathon
+
+---
+
+## License
+
+Project-specific license terms can be added here if required by the hackathon or team usage policy.
+
+# 🧭 Design Philosophy
+
+RoadSafe is built around three principles:
+
+### Predict
+
+Identify road and driver risk before an accident occurs.
+
+### Prevent
+
+Use conversational engagement and safer route recommendations to reduce risk.
+
+### Respond
+
+When prevention isn't enough, provide immediate, actionable emergency assistance.
+
+---
+
+# 🏆 Why RoadSafe?
+
+Most navigation systems optimize for:
+
+> **Fastest route.**
+
+Most driver-monitoring systems ask:
+
+> **Are your eyes open?**
+
+RoadSafe asks:
+
+> **Is this route safe, is the driver okay, and what should happen next?**
+
+That is the core idea behind RoadSafe AI.
+
+---
+
+## ⚠️ Disclaimer
+
+RoadSafe AI is a **prototype made for learning**.
+
+Safety scores, fatigue states, route ETAs, and emergency detection are estimates and should not be treated as guaranteed predictions, medical diagnoses, or guaranteed emergency-service dispatch.
+
+Drivers should always prioritize safe driving and stop in a safe location when fatigued.
+
+---
+
+## 👥 Built For
+
+**Learning**
+
+Built with AI, maps, real-time data, and human-centered safety design.
