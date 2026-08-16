@@ -4,8 +4,6 @@
 
 Built by Team Deoncodes
 
-Part of Devfolio Hackathon
-
 Routiq is a road-safety intelligence platform that helps drivers understand route risk, detect fatigue early, and respond faster during emergencies.
 
 It combines three core layers:
@@ -227,7 +225,7 @@ That is the core idea behind RoadSafe AI.
 
 ## ⚠️ Disclaimer
 
-RoadSafe AI is a **hackathon prototype**.
+RoadSafe AI is a **prototype made for learning**.
 
 Safety scores, fatigue states, route ETAs, and emergency detection are estimates and should not be treated as guaranteed predictions, medical diagnoses, or guaranteed emergency-service dispatch.
 
@@ -237,6 +235,6 @@ Drivers should always prioritize safe driving and stop in a safe location when f
 
 ## 👥 Built For
 
-**Road Safety Hackathon**
+**Learning**
 
 Built with AI, maps, real-time data, and human-centered safety design.
