@@ -151,7 +151,10 @@ class Settings:
 
     # Geoapify (Places + Routing + Matrix) — much faster than public OSRM/Overpass
     geoapify_url: str = "https://api.geoapify.com"
-    geoapify_timeout: float = _env_float("GEOAPIFY_TIMEOUT", 5.0)
+    # 8s explicit timeout per Geoapify call (Places / Matrix / Routing):
+    # generous enough for the traffic-aware routing requests, fast enough to
+    # fail over quickly. The frontend keeps its own 15s activation timeout.
+    geoapify_timeout: float = _env_float("GEOAPIFY_TIMEOUT", 8.0)
 
     # Overpass (OpenStreetMap) hospital discovery — mirrors tried in order.
     # The public API rate-limits/queues, so we rotate through several mirrors
