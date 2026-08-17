@@ -49,62 +49,9 @@ Instead of only showing a route, it helps users answer:
 ---
 
 ## Architecture
-```mermaid
-flowchart LR
-    subgraph DS["📊 DATA SOURCES"]
-        direction TB
-        D1[🎙️ Driver<br/>Voice · Response Behaviour · GPS Location]
-        D2[🛣️ Road Environment<br/>OpenStreetMap · Road Conditions · Accident History]
-        D3[🌐 Live Context<br/>Traffic · Weather · Routing]
-    end
-
-    subgraph PR["⚙️ PROCESSING"]
-        direction TB
-        P1[Location Normalization]
-        P2[Route Geometry]
-        P3[Hazard Mapping]
-        P4[Voice Processing]
-        P5[Feature Extraction]
-        P6[Real-time Context]
-        P1 --> P2 --> P3 --> P4 --> P5 --> P6
-    end
-
-    subgraph CORE["🧠 CORE AI / RISK ENGINES"]
-        direction TB
-        RS["🛑 Road Safety Engine<br/>Hazards → Lighting → Accident Risk → Road Quality → Traffic → Segment Risk"]
-        DF["😴 Driver Fatigue Engine<br/>Voice → Response → Latency → Missed Responses → Fatigue State"]
-        EM["🚨 Emergency Engine<br/>Incident → Location → Nearby Hospitals → Road ETA → Emergency Response"]
-        GEM[✨ Gemini AI Conversation<br/>Conversational check-ins · Natural responses · Follow-up questions]
-        DF <--> GEM
-    end
-
-    subgraph SI["🎯 SAFETY INTELLIGENCE"]
-        direction TB
-        RF[Risk Factors]
-        WF[Weighted Risk Fusion]
-        SCORE["Safety Score 0–100<br/>SAFE / MODERATE / HIGH / CRITICAL"]
-        EXP["Explainability<br/>🌧️ Poor Lighting · ⚠️ High Hazard Density · 🚧 Elevated Accident Risk"]
-        RF --> WF --> SCORE --> EXP
-    end
-
-    subgraph APPS["📱 DRIVER-FACING APPLICATIONS"]
-        direction TB
-        A1["🗺️ Safety Map<br/>Color-coded route · Segment-level risk · Route explanation · Safer route recommendation"]
-        A2["😴 Sleep Drive<br/>Voice conversation · Response latency · Fatigue level · Progressive warnings"]
-        A3["🚑 Emergency<br/>Incident detection · Hospital ranking · Road ETA · One-tap assistance"]
-    end
-
-    DS --> PR
-    PR --> RS
-    PR --> DF
-    PR --> EM
-    RS --> RF
-    DF --> RF
-    EM --> RF
-    SCORE --> A1
-    SCORE --> A2
-    EM --> A3
-```
+<div align="center">
+  <img src="frontend/public/Gemini_Generated_Image_u62b5pu62b5pu62b1.png" alt="Routiq architecture diagram" width="1200" />
+</div>
 
 This keeps the app split into clean concerns:
 - frontend for interaction and UI
