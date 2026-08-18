@@ -49,21 +49,8 @@ Instead of only showing a route, it helps users answer:
 ---
 
 ## Architecture
-
 <div align="center">
-  <div style="position: relative; display: inline-block;">
-    <img src="frontend/public/Gemini_Generated_Image_u62b5pu62b5pu62b1.png" alt="Routiq architecture diagram" width="1200" />
-    <div style="position: absolute; top: 20px; right: 18px; display: flex; gap: 8px;">
-      <div style="width: 38px; height: 38px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.25); background: rgba(24, 28, 36, 0.8); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 18px;">↺</div>
-      <div style="width: 38px; height: 38px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.25); background: rgba(24, 28, 36, 0.8); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 18px;">⎘</div>
-    </div>
-    <div style="position: absolute; right: 18px; bottom: 20px; width: 84px; height: 146px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.22); background: rgba(20, 24, 31, 0.72); display: flex; flex-direction: column; align-items: center; justify-content: space-evenly;">
-      <div style="width: 30px; height: 30px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 18px;">+</div>
-      <div style="width: 30px; height: 30px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 18px;">−</div>
-      <div style="width: 30px; height: 30px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 18px;">◁</div>
-      <div style="width: 30px; height: 30px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 18px;">▷</div>
-    </div>
-  </div>
+  <img src="frontend/public/Gemini_Generated_Image_u62b5pu62b5pu62b1.png" alt="Routiq architecture diagram" width="1200" />
 </div>
 
 This keeps the app split into clean concerns:
