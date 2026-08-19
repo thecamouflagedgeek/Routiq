@@ -55,9 +55,12 @@ class HospitalProvider:
             from app.providers.geoapify import GeoapifyProvider, GeoapifyProviderError
             geo = GeoapifyProvider()
             try:
-                candidates = await geo.find_hospitals(
-                    point, radius, limit=settings.hospital_eta_candidates
-                )
+                # Fetch a generous candidate set (Places returns relevance-
+                # ordered results, so asking for exactly the ETA-candidate
+                # count would silently drop the nearest hospitals — the
+                # wrong-location bug). The distance sort + trim below picks
+                # the true nearest `hospital_eta_candidates`.
+                candidates = await geo.find_hospitals(point, radius)
             except GeoapifyProviderError as exc:
                 if require_geoapify:
                     raise HospitalProviderUnavailable("HOSPITAL_PROVIDER_UNAVAILABLE") from exc

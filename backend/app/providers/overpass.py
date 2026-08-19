@@ -23,7 +23,11 @@ _CACHE_TTL_SECONDS = 300
 
 
 def _cache_key(lat: float, lon: float, radius_km: float) -> str:
-    return f"{round(lat, 2):.2f},{round(lon, 2):.2f},{radius_km}"
+    # 3 decimal places ≈ 110m cells — fine enough that two nearby suburbs
+    # (e.g. Kandivali vs Bandra) can never share a bucket and get served each
+    # other's cached hospitals. Coarser rounding (1-2 decimals = km-scale
+    # cells) is exactly what caused wrong-location cached results.
+    return f"{round(lat, 3):.3f},{round(lon, 3):.3f},{radius_km}"
 
 
 def _get_cached(key: str) -> list[dict] | None:

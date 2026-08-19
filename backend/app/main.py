@@ -2,28 +2,27 @@
 
 Endpoints:
     GET  /api/health
-    GET  /api/config                (weights, thresholds, provider status)
-    POST /api/config                (override safety weights at runtime)
-    GET  /api/route                 (route + per-segment safety scores)
-    POST /api/safety-score          (score an arbitrary polyline)
-    GET  /api/hazards               (near a point, user + real dataset data)
-    POST /api/hazards               (submit a hazard)
-    GET  /api/hospitals             (ranked by road ETA)
-    POST /api/fatigue/session       (create a Sleep Drive session)
-    POST /api/fatigue/event         (stream conversation events)
-    POST /api/emergency/activate    (dynamic OSM hospitals + emergency number + countdown)
-    GET  /api/emergency/route       (OSRM navigation route to the selected hospital)
+    GET  /api/config
+    POST /api/config
+    GET  /api/route
+    POST /api/safety-score
+    GET  /api/hazards
+    POST /api/hazards
+    GET  /api/hospitals
+    POST /api/fatigue/session
+    POST /api/fatigue/event
+    POST /api/emergency/activate
+    GET  /api/emergency/route
 
 No API keys are required to run — every provider has a demo fallback and the
 response always declares whether data is LIVE or DEMO.
 """
+
 from __future__ import annotations
+
 import os
 import time
 from contextlib import asynccontextmanager
-
-from fastapi import FastAPI, HTTPException, Query
-from fastapi.middleware.cors import CORSMiddleware
 
 from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -78,23 +77,21 @@ from app.services.sarvam import sarvam_service
 from app.services.segmentation import segment_route
 from app.services.risk_data import RiskDataService
 
-# Real Mumbai risk datasets - loaded once, geocoded once, cached to disk.
 risk_data = RiskDataService()
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    # Geocode any dataset names missing from the master coordinates CSV
-    # (network needed only on the very first run; afterwards offline).
     await risk_data.warm_up()
     yield
 
 
-app = FastAPI(title="RoadSafe AI", version="0.1.0", lifespan=lifespan)
+app = FastAPI(
+    title="RoadSafe AI",
+    version="0.1.0",
+    lifespan=lifespan,
+)
 
-# --------------------------------------------------------------------------
-# Rate limiting — protect the AI-provider budget from misbehaving clients.
-# --------------------------------------------------------------------------
 _ai_limiter = RateLimiter(30, 60, "ai")
 _tts_limiter = RateLimiter(40, 60, "tts")
 _stt_limiter = RateLimiter(30, 60, "stt")
@@ -122,23 +119,30 @@ def _limiter_for(path: str) -> RateLimiter | None:
 @app.middleware("http")
 async def rate_limit_ai(request: Request, call_next):
     limiter = _limiter_for(request.url.path)
+
     if limiter is not None:
         try:
             limiter.check(request)
         except HTTPException as exc:
-            return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+            return JSONResponse(
+                status_code=exc.status_code,
+                content={"detail": exc.detail},
+            )
+
     return await call_next(request)
 
-# CORS configuration — allow local Vite dev and the deployed frontend origin.
-# Example Render env: FRONTEND_URL=https://your-project.vercel.app
+
 allowed_origins = [
     origin.strip()
     for origin in (
         os.environ.get("FRONTEND_URL", "")
-        + ",http://localhost:5173,http://127.0.0.1:5173,https://routiq-o2j2.onrender.com"
+        + ",https://routiq-gilt.vercel.app"
+        + ",http://localhost:5173"
+        + ",http://127.0.0.1:5173"
     ).split(",")
     if origin.strip()
 ]
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,

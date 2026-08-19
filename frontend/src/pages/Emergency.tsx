@@ -603,7 +603,13 @@ export function Emergency({ onGoDashboard }: { onGoDashboard: () => void }) {
                         Estimated road ETA
                       </span>
                       <span className="text-lg font-black text-red-500">
-                        {emergency.hospitals[0]?.eta_min} min
+                        {emergency.hospitals[0]?.eta_min != null ? (
+                          `${emergency.hospitals[0].eta_min} min`
+                        ) : (
+                          <span className="text-xs font-semibold text-amber-600">
+                            Driving time unavailable
+                          </span>
+                        )}
                       </span>
                     </div>
                   </div>
@@ -707,9 +713,15 @@ export function Emergency({ onGoDashboard }: { onGoDashboard: () => void }) {
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="text-sm font-black text-red-500">
-                          {h.eta_min} min
-                        </div>
+                        {h.eta_min != null ? (
+                          <div className="text-sm font-black text-red-500">
+                            {h.eta_min} min
+                          </div>
+                        ) : (
+                          <div className="text-[10px] font-semibold text-amber-600">
+                            Driving time unavailable
+                          </div>
+                        )}
                         <div className="text-[9px] font-semibold text-green-500">
                           Fastest ETA
                         </div>

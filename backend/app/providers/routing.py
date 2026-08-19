@@ -286,8 +286,21 @@ def polyline_length_km(pts: list[list[float]]) -> float:
 
 
 async def get_route(start: Point, end: Point) -> tuple[list[list[float]], float, str, str, float | None]:
-    """Try live routing (TomTom when keyed, else OSRM), then the deterministic
-    demo route. Returns (geometry, duration_min, source, provider, traffic)."""
+    """Try live routing (Geoapify when keyed, else TomTom, else OSRM), then the
+    deterministic demo route. Returns (geometry, duration_min, source,
+    provider, traffic).
+
+    Geoapify is used with traffic=approximated so journey ETAs reflect
+    congestion-aware speeds instead of free-flow speed limits (the old OSRM
+    behaviour showed e.g. 16.5 min for Bandra->Kandivali vs ~45-70 min real
+    travel time)."""
+    if settings.has_geoapify:
+        from app.providers.geoapify import GeoapifyProvider
+        geoap = GeoapifyProvider()
+        result = await geoap.route_with_steps(start, end)
+        if result and len(result[0]) >= 2:
+            geo, _dist, duration, _steps = result
+            return geo, duration, "live", "geoapify", None
     if settings.has_routing:
         tom = TomTomRoutingProvider()
         result = await tom.route(start, end)

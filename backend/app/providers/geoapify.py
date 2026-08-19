@@ -35,15 +35,27 @@ class GeoapifyProvider:
         """Find hospitals using Geoapify Places API.
         
         Returns list of dicts with: id, name, address, lat, lon, phone.
-        Much faster than Overpass and doesn't rate-limit."""
+        Much faster than Overpass and doesn't rate-limit.
+
+        CRITICAL: the Places API returns results in relevance order, NOT by
+        distance from the circle centre. Without bias/sort, requesting a small
+        limit (e.g. 12) silently drops the nearest hospitals and keeps only
+        far-away ones — which showed up as "wrong-location" suggestions. We
+        therefore (a) ask Geoapify to sort by distance via bias=proximity +
+        sort=distance, and (b) fetch a generous candidate set so the caller's
+        own straight-line distance sort always has the truly-nearest hospitals
+        to work with."""
         lat, lon = point
         radius_m = int(radius_km * 1000)
         
-        # Geoapify uses circle filter: center point + radius
+        # Geoapify uses circle filter: center point + radius (lon,lat order),
+        # and bias=proximity + sort=distance for nearest-first ordering.
         url = (
             f"{self._base}/v2/places"
             f"?categories=healthcare.hospital"
             f"&filter=circle:{lon},{lat},{radius_m}"
+            f"&bias=proximity:{lon},{lat}"
+            f"&sort=distance"
             f"&limit={max(1, min(limit, 50))}"
             f"&apiKey={self._key}"
         )
@@ -110,6 +122,9 @@ class GeoapifyProvider:
             "mode": "drive",
             "sources": sources,
             "targets": targets,
+            # Congestion-aware speed model instead of free-flow speed limits —
+            # free-flow times are unrealistically short in Mumbai traffic.
+            "traffic": "approximated",
         }
         
         try:
@@ -157,6 +172,10 @@ class GeoapifyProvider:
             f"{self._base}/v1/routing"
             f"?waypoints={lat1},{lon1}|{lat2},{lon2}"
             f"&mode=drive"
+            # Congestion-aware speed modeling: free-flow ETAs are unrealistically
+            # short (e.g. 16.5 min Bandra->Kandivali vs ~45-70 min real time).
+            f"&traffic=approximated"
+            f"&details=instruction_details"
             f"&apiKey={self._key}"
         )
         

@@ -22,4 +22,16 @@ build/
 # --- misc ---
 .DS_Store
 *.log
+<<<<<<< HEAD
+=======
+
+# --- Freebuff ---
+>>>>>>> 63a02e3403687f563b5cb231e54e020debf50529
 .freebuff/
+
+# --- Markdown documentation ---
+# Ignore all Markdown files
+*.md
+
+# Keep the main README
+!README.md
