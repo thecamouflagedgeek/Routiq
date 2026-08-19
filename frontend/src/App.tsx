@@ -26,8 +26,11 @@ export default function App() {
     return window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false;
   });
 
+  const [showPlanning, setShowPlanning] = useState(false);
+
   const navigate = useCallback((page: Page) => {
     window.location.hash = `#/${page}`;
+    setShowPlanning(page === "dashboard");
   }, []);
 
   useFatigue(useCallback(() => navigate("emergency"), [navigate]));
@@ -59,17 +62,22 @@ export default function App() {
       className="min-h-screen"
       style={{ background: "var(--bg)", color: "var(--text)" }}
     >
-      <Navbar
-        page={route.page}
-        onNavigate={navigate}
-        onReportHazard={openReportHazard}
-        dark={dark}
-        onToggleDark={() => setDark((d) => !d)}
-        hideBrandPill={route.page === "dashboard"}
-      />
+      {route.page === "dashboard" && (
+        <Navbar
+          page={route.page}
+          onNavigate={navigate}
+          onReportHazard={openReportHazard}
+          dark={dark}
+          onToggleDark={() => setDark((d) => !d)}
+          hideBrandPill
+        />
+      )}
 
       {route.page === "sleep" && (
-        <SleepDrive onGoEmergency={() => navigate("emergency")} />
+        <SleepDrive
+          onGoDashboard={() => navigate("dashboard")}
+          onGoEmergency={() => navigate("emergency")}
+        />
       )}
 
       {route.page === "emergency" && (
@@ -81,6 +89,7 @@ export default function App() {
           onOpenEmergency={() => navigate("emergency")}
           initialReport={route.report}
           dark={dark}
+          showPlanning={showPlanning}
         />
       )}
     </div>

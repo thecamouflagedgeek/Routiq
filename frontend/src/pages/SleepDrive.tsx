@@ -1,4 +1,5 @@
 import {
+  ArrowLeft,
   ArrowRight,
   Mic,
   MicOff,
@@ -19,7 +20,13 @@ import {
 } from "../components/ui";
 import { useFatigue } from "../hooks/useFatigue";
 
-export function SleepDrive({ onGoEmergency }: { onGoEmergency: () => void }) {
+export function SleepDrive({
+  onGoDashboard,
+  onGoEmergency,
+}: {
+  onGoDashboard: () => void;
+  onGoEmergency: () => void;
+}) {
   const f = useFatigue(onGoEmergency);
 
   const waiting = f.phase === "waiting";
@@ -37,13 +44,34 @@ export function SleepDrive({ onGoEmergency }: { onGoEmergency: () => void }) {
 
   return (
     <div
-      className="min-h-screen pb-24 pt-16 transition-colors sm:pt-20"
+      className="min-h-screen pb-24 transition-colors"
       style={{ background: "var(--bg)", color: "var(--text)" }}
     >
-      <div className="mx-auto max-w-5xl px-4">
-        {f.phase !== "idle" && (
-          <div
-            className="mb-4 flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-medium"
+      {/* Minimal top bar — no full Navbar, just back + title + theme toggle */}
+      <header
+        className="fixed inset-x-0 top-0 z-[1200] backdrop-blur-md transition-colors"
+        style={{
+          background: "var(--bg)",
+          borderBottom: "1px solid var(--border)",
+        }}
+      >
+        <div className="flex h-12 items-center justify-between px-3">
+          <button
+            onClick={onGoDashboard}
+            className="flex cursor-pointer items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-bold transition-colors hover:bg-white/5"
+            style={{ color: "var(--text)" }}
+          >
+            <ArrowLeft size={16} />
+            Navigate
+          </button>
+          <span className="text-xs font-extrabold tracking-tight" style={{ color: "var(--text)" }}>
+            Sleep Drive
+          </span>
+          <span className="w-16" />
+        </div>
+      </header>
+      <div className="mx-auto max-w-5xl px-3 pt-14 sm:px-4 sm:pt-16">
+        {f.phase !== "idle" && (            <div className="mb-3 flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-medium sm:mb-4"
             style={{
               borderColor: "var(--border)",
               background: "rgba(245, 158, 11, 0.08)",
@@ -56,7 +84,7 @@ export function SleepDrive({ onGoEmergency }: { onGoEmergency: () => void }) {
 
         <div className="grid gap-4 lg:grid-cols-[1.3fr_0.7fr]">
           <section
-            className="rounded-2xl border p-4 shadow-sm"
+            className="rounded-2xl border p-3 shadow-sm sm:p-4"
             style={{
               background: "var(--surface)",
               borderColor: "var(--border)",
@@ -88,26 +116,27 @@ export function SleepDrive({ onGoEmergency }: { onGoEmergency: () => void }) {
               <RiskBadge level={riskLevel} />
             </div>
 
-            <div className="flex min-h-[260px] flex-col items-center justify-center text-center">
+            <div className="flex min-h-[200px] flex-col items-center justify-center text-center sm:min-h-[260px]">
               {f.phase === "idle" ? (
                 <>
                   <div
-                    className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl"
+                    className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl sm:h-16 sm:w-16"
                     style={{ background: "var(--text)" }}
                   >
-                    <Mic size={28} style={{ color: "var(--orange)" }} />
+                    <Mic size={22} className="sm:hidden" style={{ color: "var(--orange)" }} />
+                    <Mic size={28} className="hidden sm:block" style={{ color: "var(--orange)" }} />
                   </div>
-                  <h2 className="text-2xl font-black tracking-tight">
+                  <h2 className="text-lg font-black tracking-tight sm:text-2xl">
                     Hands-free fatigue detection
                   </h2>
                   <p
-                    className="mt-2 max-w-md text-sm leading-relaxed"
+                    className="mt-1.5 max-w-md text-xs leading-relaxed sm:mt-2 sm:text-sm"
                     style={{ color: "var(--text-3)" }}
                   >
                     Routiq monitors your attention during the drive using voice
                     check-ins, latency, and quick safety prompts.
                   </p>
-                  <div className="mt-6">
+                  <div className="mt-4 sm:mt-6">
                     <PillButton
                       variant="black"
                       onClick={f.start}
@@ -146,7 +175,7 @@ export function SleepDrive({ onGoEmergency }: { onGoEmergency: () => void }) {
                       onClick={() =>
                         f.listening && f.demoReply("I am awake and focused.")
                       }
-                      className="flex h-16 w-16 items-center justify-center rounded-full shadow-xl transition-transform active:scale-95"
+                      className="flex h-12 w-12 items-center justify-center rounded-full shadow-xl transition-transform active:scale-95 sm:h-14 sm:w-14 md:h-16 md:w-16"
                       style={{
                         background: f.listening ? "#f97316" : "var(--bg-3)",
                       }}
@@ -157,7 +186,7 @@ export function SleepDrive({ onGoEmergency }: { onGoEmergency: () => void }) {
                         <MicOff size={20} style={{ color: "var(--text-4)" }} />
                       )}
                     </button>
-                    <div className="text-left">
+                    <div className="text-left ml-1">
                       <div
                         className="text-[10px] font-extrabold uppercase tracking-[0.18em]"
                         style={{ color: "var(--text-4)" }}
@@ -165,7 +194,7 @@ export function SleepDrive({ onGoEmergency }: { onGoEmergency: () => void }) {
                         Response timer
                       </div>
                       <div
-                        className="text-3xl font-black tabular-nums"
+                        className="text-2xl font-black tabular-nums sm:text-3xl"
                         style={{ color: "var(--orange)" }}
                       >
                         {f.elapsed.toFixed(1)}s
@@ -228,9 +257,9 @@ export function SleepDrive({ onGoEmergency }: { onGoEmergency: () => void }) {
             </div>
           </section>
 
-          <aside className="space-y-4">
+          <aside className="space-y-3 sm:space-y-4">
             <section
-              className="rounded-2xl border p-3.5 shadow-sm"
+              className="rounded-2xl border p-3 shadow-sm sm:p-3.5"
               style={{
                 background: "var(--surface)",
                 borderColor: "var(--border)",
@@ -240,17 +269,24 @@ export function SleepDrive({ onGoEmergency }: { onGoEmergency: () => void }) {
                 <SectionLabel>Driver attention</SectionLabel>
                 <ShieldCheck size={14} style={{ color: "var(--orange)" }} />
               </div>
-              <div className="mt-3 flex items-center justify-center">
+              <div className="mt-2 flex items-center justify-center sm:mt-3">
+                <ScoreGauge
+                  score={Math.round(f.driver.confidence * 100)}
+                  size={72}
+                  label="Confidence"
+                  className="sm:hidden"
+                />
                 <ScoreGauge
                   score={Math.round(f.driver.confidence * 100)}
                   size={92}
                   label="Confidence"
+                  className="hidden sm:block"
                 />
               </div>
             </section>
 
             <section
-              className="rounded-2xl border p-3.5 shadow-sm"
+              className="rounded-2xl border p-3 shadow-sm sm:p-3.5"
               style={{
                 background: "var(--surface)",
                 borderColor: "var(--border)",
@@ -296,19 +332,20 @@ export function SleepDrive({ onGoEmergency }: { onGoEmergency: () => void }) {
       </div>
 
       {critical && (
-        <div className="fixed inset-0 z-[1500] flex items-center justify-center bg-red-950/90 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-3xl border-2 border-red-400 bg-red-950 p-6 text-center text-white">
-            <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-red-600">
-              <Siren size={32} className="animate-pulse" />
+        <div className="fixed inset-0 z-[1500] flex items-center justify-center bg-red-950/90 p-3 backdrop-blur-sm sm:p-4">
+          <div className="w-full max-w-md rounded-2xl border-2 border-red-400 bg-red-950 p-5 text-center text-white sm:rounded-3xl sm:p-6">
+            <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-red-600 sm:h-16 sm:w-16">
+              <Siren size={28} className="animate-pulse sm:hidden" />
+              <Siren size={32} className="hidden animate-pulse sm:block" />
             </div>
-            <h2 className="text-2xl font-black tracking-tight text-red-400">
+            <h2 className="text-xl font-black tracking-tight text-red-400 sm:text-2xl">
               Critical fatigue detected
             </h2>
-            <p className="mt-2 text-xs leading-relaxed opacity-90">
+            <p className="mt-1.5 text-[11px] leading-relaxed opacity-90 sm:mt-2 sm:text-xs">
               Pull over safely at the nearest safe spot or move to emergency
               mode.
             </p>
-            <div className="mt-4 flex gap-2">
+            <div className="mt-3 flex gap-2 sm:mt-4">
               <PillButton
                 variant="black"
                 className="flex-1"

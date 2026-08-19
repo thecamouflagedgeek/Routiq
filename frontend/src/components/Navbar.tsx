@@ -175,7 +175,7 @@ export function Navbar({
             : "1px solid rgba(0, 0, 0, 0.08)",
         }}
       >
-        <div className="flex h-12 items-center justify-between px-3.5">
+        <div className="flex h-11 items-center justify-between px-3 sm:h-12">
           <button
             className="flex cursor-pointer items-center gap-2"
             onClick={() => onNavigate("dashboard")}
@@ -217,9 +217,9 @@ export function Navbar({
       </header>
 
       {/* ── Mobile Floating Bottom Dock (Uber App Style - Inspiration Image 1) ── */}
-      <div className="fixed bottom-3 inset-x-3 z-[1200] md:hidden flex justify-center items-center pointer-events-none">
+      <div className="fixed bottom-2 inset-x-2 z-[1200] md:hidden flex justify-center items-center pointer-events-none">
         <div
-          className="pointer-events-auto flex items-center justify-around w-full max-w-sm p-1.5 rounded-2xl shadow-2xl backdrop-blur-xl transition-all"
+          className="pointer-events-auto flex items-center justify-around w-full max-w-sm p-1 rounded-xl shadow-2xl backdrop-blur-xl transition-all sm:p-1.5 sm:rounded-2xl"
           style={{
             background: dark
               ? "rgba(18, 18, 21, 0.92)"
@@ -236,7 +236,7 @@ export function Navbar({
               <button
                 key={l.id}
                 onClick={() => onNavigate(l.id)}
-                className="flex flex-col items-center justify-center py-1 px-3 rounded-xl transition-all cursor-pointer min-w-[70px]"
+                className="flex flex-col items-center justify-center py-1.5 px-2.5 rounded-lg transition-all cursor-pointer min-w-[60px] sm:min-w-[70px] sm:px-3 sm:rounded-xl"
                 style={
                   active
                     ? {
@@ -252,8 +252,8 @@ export function Navbar({
                       }
                 }
               >
-                <Icon size={17} className={active ? "text-white" : ""} />
-                <span className="text-[10px] font-extrabold mt-0.5 tracking-tight">
+                <Icon size={16} className={active ? "text-white" : ""} />
+                <span className="text-[9px] font-extrabold mt-0.5 tracking-tight sm:text-[10px]">
                   {l.label}
                 </span>
               </button>

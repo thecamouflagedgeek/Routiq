@@ -105,13 +105,13 @@ function PlanningContent({
     route?.weather?.temp_c != null ? `${route.weather.temp_c.toFixed(1)}°C` : null;
 
   return (
-    <div className="space-y-3.5">
+    <div className="space-y-3 md:space-y-3.5">
       {/* 1. Hero */}
       <div>
         <h1
           className={
             compact
-              ? "text-xl font-black leading-[1.15] tracking-tight text-white"
+              ? "text-lg font-black leading-[1.15] tracking-tight text-white"
               : "text-[26px] font-black leading-[1.12] tracking-tight text-white"
           }
         >
@@ -119,7 +119,7 @@ function PlanningContent({
           <br />
           <span style={{ color: C.orange }}>Before you drive it.</span>
         </h1>
-        <p className="mt-1.5 text-xs font-medium leading-relaxed" style={{ color: C.muted }}>
+        <p className="mt-1 text-[11px] font-medium leading-relaxed md:mt-1.5 md:text-xs" style={{ color: C.muted }}>
           Segment-level safety scores. Real-time driver monitoring. Contextual
           risk fusion.
         </p>
@@ -130,7 +130,7 @@ function PlanningContent({
         <button
           onClick={onStartDemo}
           disabled={loading}
-          className="flex w-full cursor-pointer items-center justify-center gap-3 rounded-2xl py-3.5 text-sm font-black text-white transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-50"
+          className="flex w-full cursor-pointer items-center justify-center gap-2.5 rounded-2xl py-3 text-sm font-black text-white transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-50 md:gap-3 md:py-3.5"
           style={{
             background: C.orange,
             boxShadow: "0 8px 24px rgba(255,102,0,0.35)",
@@ -145,7 +145,7 @@ function PlanningContent({
 
       {/* 3. Route summary card */}
       <div
-        className="rounded-2xl p-4"
+        className="rounded-2xl p-3 md:p-4"
         style={{ background: C.card, border: `1px solid ${C.border}` }}
       >
         {/* top row — Best Route + temperature */}
@@ -168,7 +168,7 @@ function PlanningContent({
         </div>
 
         {/* stats */}
-        <div className="mt-3.5 grid grid-cols-2 gap-3">
+        <div className="mt-2.5 grid grid-cols-2 gap-2.5 md:mt-3.5 md:gap-3">
           <div>
             <div
               className="text-[10px] font-extrabold uppercase tracking-[0.14em]"
@@ -176,7 +176,7 @@ function PlanningContent({
             >
               Estimated time
             </div>
-            <div className="mt-0.5 text-2xl font-black leading-none text-white">
+            <div className="mt-0.5 text-xl font-black leading-none text-white md:text-2xl">
               {route ? `${route.duration_min.toFixed(1)} min` : "--"}
             </div>
           </div>
@@ -187,14 +187,14 @@ function PlanningContent({
             >
               Distance
             </div>
-            <div className="mt-0.5 text-2xl font-black leading-none text-white">
+            <div className="mt-0.5 text-xl font-black leading-none text-white md:text-2xl">
               {route ? `${route.distance_km.toFixed(1)} km` : "--"}
             </div>
           </div>
         </div>
 
         {/* sub row */}
-        <div className="mt-3 flex items-center justify-between text-[11px] font-medium" style={{ color: C.muted }}>
+        <div className="mt-2 flex items-center justify-between text-[11px] font-medium md:mt-3" style={{ color: C.muted }}>
           <span>
             {route ? `Fastest route · ${route.segments.length} segments` : "Planning a safer route…"}
           </span>
@@ -227,7 +227,7 @@ function PlanningContent({
 
         {/* bottom row — risk + details */}
         <div
-          className="mt-3 flex items-center justify-between border-t pt-3"
+          className="mt-2.5 flex items-center justify-between border-t pt-2.5 md:mt-3 md:pt-3"
           style={{ borderColor: "rgba(255,255,255,0.07)" }}
         >
           <span className="flex items-center gap-1.5 text-xs font-black tracking-wide" style={{ color: riskColor }}>
@@ -246,7 +246,7 @@ function PlanningContent({
       </div>
 
       {/* 4. Location inputs */}
-      <div className="space-y-2.5">
+      <div className="space-y-2 md:space-y-2.5">
         <PlaceAutocomplete
           value={start}
           placeholder="Start — e.g. Bandra West"
@@ -273,7 +273,7 @@ function PlanningContent({
       {/* 6. Live road hazards */}
       {hazards.length > 0 && (
         <div
-          className="rounded-2xl p-3.5"
+          className="rounded-2xl p-3 md:p-3.5"
           style={{ background: C.card, border: `1px solid ${C.border}` }}
         >
           <div className="mb-2 flex items-center justify-between">
@@ -338,10 +338,12 @@ export function Dashboard({
   initialReport = false,
   dark,
   onOpenEmergency,
+  showPlanning = false,
 }: {
   onOpenEmergency: () => void;
   initialReport?: boolean;
   dark?: boolean;
+  showPlanning?: boolean;
 }) {
   const [start, setStart] = useState<Place | null>(DEFAULT_START);
   const [end, setEnd] = useState<Place | null>(DEFAULT_END);
@@ -677,48 +679,51 @@ export function Dashboard({
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════════
-          DESKTOP LEFT SIDEBAR — mockup planning panel
-      ═══════════════════════════════════════════════════════════════════ */}
-      {!isSimulating && sim.phase !== "finished" && (
-        <>
-          {/* Brand pill — centred over the visible map area (sidebar offset) */}
-          <div
-            className="absolute top-4 z-[1100] hidden -translate-x-1/2 items-center gap-2.5 rounded-2xl px-5 py-2 shadow-2xl backdrop-blur-md md:flex"
-            style={{
-              left: "calc(50% + 180px)",
-              background: C.pill,
-              border: `1px solid ${C.borderStrong}`,
-            }}
-          >
-            <img
-              src={dark ? "/routiqinverted.png" : "/routiqlogo.png"}
-              alt="Routiq"
-              className="h-9 w-[132px] object-cover"
-              style={{ objectPosition: "center 51%" }}
-            />
-          </div>
-
-          <aside
-            className="absolute inset-y-0 left-0 z-[1050] hidden w-[360px] flex-col overflow-hidden md:flex lg:w-[400px]"
-            style={{
-              background: C.sidebar,
-              borderRight: `1px solid ${C.border}`,
-              boxShadow: "20px 0 60px rgba(0,0,0,0.45)",
-            }}
-          >
-            <div className="slim-scroll scrollbar-hide flex-1 overflow-y-auto p-5">
-              <PlanningContent {...planningProps} />
-            </div>
-          </aside>
-        </>
-      )}
-
-      {/* ═══════════════════════════════════════════════════════════════════
-          MOBILE BOTTOM SHEET (same content, Uber-style)
+          Brand pill — always visible on the map (even when planning is hidden)
       ═══════════════════════════════════════════════════════════════════ */}
       {!isSimulating && sim.phase !== "finished" && (
         <div
-          className="fixed inset-x-3 bottom-[76px] z-[1050] max-h-[62vh] overflow-y-auto rounded-3xl p-3.5 md:hidden"
+          className="absolute top-4 z-[1100] hidden -translate-x-1/2 items-center gap-2.5 rounded-2xl px-5 py-2 shadow-2xl backdrop-blur-md md:flex"
+          style={{
+            left: showPlanning ? "calc(50% + 180px)" : "50%",
+            background: C.pill,
+            border: `1px solid ${C.borderStrong}`,
+            transition: "left 0.3s ease",
+          }}
+        >
+          <img
+            src={dark ? "/routiqinverted.png" : "/routiqlogo.png"}
+            alt="Routiq"
+            className="h-9 w-[132px] object-cover"
+            style={{ objectPosition: "center 51%" }}
+          />
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════
+          DESKTOP LEFT SIDEBAR — mockup planning panel (only when Navigate is active)
+      ═══════════════════════════════════════════════════════════════════ */}
+      {!isSimulating && sim.phase !== "finished" && showPlanning && (
+        <aside
+          className="absolute inset-y-0 left-0 z-[1050] hidden w-[360px] flex-col overflow-hidden md:flex lg:w-[400px]"
+          style={{
+            background: C.sidebar,
+            borderRight: `1px solid ${C.border}`,
+            boxShadow: "20px 0 60px rgba(0,0,0,0.45)",
+          }}
+        >
+          <div className="slim-scroll scrollbar-hide flex-1 overflow-y-auto p-5">
+            <PlanningContent {...planningProps} />
+          </div>
+        </aside>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════
+          MOBILE BOTTOM SHEET (same content, Uber-style) — only when Navigate is active
+      ═══════════════════════════════════════════════════════════════════ */}
+      {!isSimulating && sim.phase !== "finished" && showPlanning && (
+        <div
+          className="fixed inset-x-3 bottom-[76px] z-[1050] max-h-[55vh] overflow-y-auto rounded-3xl p-3 md:p-3.5 slim-scroll md:hidden"
           style={{
             background: "rgba(20,23,31,0.92)",
             backdropFilter: "blur(16px)",
@@ -727,7 +732,7 @@ export function Dashboard({
             boxShadow: "0 -12px 40px rgba(0,0,0,0.5)",
           }}
         >
-          <div className="mb-2.5 flex justify-center">
+          <div className="mb-2 flex justify-center">
             <span
               className="h-1.5 w-12 rounded-full"
               style={{ background: "rgba(255,255,255,0.2)" }}
@@ -741,9 +746,9 @@ export function Dashboard({
           Simulation controls bar (top centre, during sim)
       ═══════════════════════════════════════════════════════════════════ */}
       {isSimulating && (
-        <div className="absolute left-1/2 top-20 z-[1060] -translate-x-1/2">
+        <div className="absolute left-1/2 top-16 z-[1060] -translate-x-1/2 md:top-20">
           <div
-            className="flex items-center gap-2 rounded-2xl px-4 py-2.5 shadow-xl"
+            className="flex flex-wrap items-center justify-center gap-1.5 rounded-2xl px-3 py-2 shadow-xl md:gap-2 md:px-4 md:py-2.5"
             style={{
               background: C.pill,
               border: `1px solid ${C.borderStrong}`,
@@ -813,7 +818,7 @@ export function Dashboard({
             setSelected(riskAlert);
             setRiskAlert(null);
           }}
-          className="slide-in-up absolute right-3 top-36 z-[1100] w-[calc(100%-1.5rem)] max-w-[340px] cursor-pointer overflow-hidden rounded-2xl text-left shadow-2xl transition-transform hover:scale-[1.02] active:scale-[0.99]"
+          className="slide-in-up absolute right-2 top-20 z-[1100] w-[calc(100%-1rem)] max-w-[320px] cursor-pointer overflow-hidden rounded-xl text-left shadow-2xl transition-transform hover:scale-[1.02] active:scale-[0.99] md:right-3 md:top-36 md:max-w-[340px] md:rounded-2xl"
           style={{
             background: C.pill,
             border: `1px solid ${RISK_META[riskAlert.risk_level].color}66`,
@@ -838,9 +843,9 @@ export function Dashboard({
               </div>
               <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                 <RiskBadge level={riskAlert.risk_level} />
-                <span className="text-[10px] font-medium" style={{ color: C.faint }}>
-                  {riskAlert.distance_km.toFixed(1)} km
-                </span>
+            <span className="text-[10px] font-medium hidden sm:inline" style={{ color: C.faint }}>
+              {riskAlert.distance_km.toFixed(1)} km
+            </span>
               </div>
             </div>
             <div className="flex shrink-0 flex-col items-end">
@@ -870,7 +875,7 @@ export function Dashboard({
       {sim.phase === "finished" && (
         <div className="absolute inset-0 z-[1200] flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div
-            className="w-80 rounded-3xl p-8 text-center shadow-2xl"
+            className="w-72 rounded-2xl p-6 text-center shadow-2xl md:w-80 md:rounded-3xl md:p-8"
             style={{
               background: C.pill,
               border: `1px solid ${C.borderStrong}`,
@@ -911,7 +916,7 @@ export function Dashboard({
       ═══════════════════════════════════════════════════════════════════ */}
       {showList && route && !isSimulating && (
         <aside
-          className="slide-in-right absolute bottom-24 right-4 top-16 z-[1050] flex w-[320px] max-w-[calc(100%-2rem)] flex-col overflow-hidden rounded-2xl shadow-2xl"
+          className="slide-in-right absolute bottom-20 right-2 top-14 z-[1050] flex w-[calc(100%-1rem)] max-w-[340px] flex-col overflow-hidden rounded-xl shadow-2xl md:bottom-24 md:right-4 md:top-16 md:w-[320px] md:rounded-2xl"
           style={{
             background: C.pill,
             border: `1px solid ${C.borderStrong}`,

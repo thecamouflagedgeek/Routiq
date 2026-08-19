@@ -46,17 +46,19 @@ export function ScoreGauge({
   score,
   size = 92,
   label,
+  className = '',
 }: {
   score: number
   size?: number
   label?: string
+  className?: string
 }) {
   const meta = RISK_META[score >= 80 ? 'SAFE' : score >= 60 ? 'MODERATE' : score >= 45 ? 'HIGH' : 'CRITICAL']
   const r = (size - 12) / 2
   const circ = 2 * Math.PI * r
   const filled = (score / 100) * circ
   return (
-    <div className="relative inline-flex items-center justify-center" style={{ width: size, height: size }}>
+    <div className={`relative inline-flex items-center justify-center ${className}`} style={{ width: size, height: size }}>
       <svg width={size} height={size} className="-rotate-90">
         <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--bg-3)" strokeWidth={9} />
         <circle

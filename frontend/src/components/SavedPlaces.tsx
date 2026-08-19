@@ -65,7 +65,7 @@ export function SavedPlaces({ onSelectPlace }: Props) {
 
   return (
     <div
-      className="rounded-2xl p-3.5 border transition-all"
+      className="rounded-2xl p-3 border transition-all sm:p-3.5"
       style={{ background: '#1a1e27', borderColor: 'rgba(255,255,255,0.08)' }}
     >
       <div className="mb-2.5 flex items-center justify-between">
@@ -77,19 +77,20 @@ export function SavedPlaces({ onSelectPlace }: Props) {
         </span>
       </div>
 
-      <div className="grid grid-cols-2 gap-2.5">
+      <div className="grid grid-cols-2 gap-2 sm:gap-2.5">
         {/* HOME BUTTON */}
         <div
-          className="group relative flex flex-col justify-between rounded-xl p-3 border transition-all cursor-pointer hover:border-blue-500/40"
+          className="group relative flex flex-col justify-between rounded-xl p-2.5 border transition-all cursor-pointer hover:border-blue-500/40 sm:p-3"
           style={{ background: '#14171f', borderColor: 'rgba(255,255,255,0.08)' }}
           onClick={() => onSelectPlace(home)}
         >
           <div className="flex items-center justify-between">
             <span
-              className="flex h-9 w-9 items-center justify-center rounded-lg"
+              className="flex h-7 w-7 items-center justify-center rounded-lg sm:h-9 sm:w-9"
               style={{ background: 'rgba(59,130,246,0.16)', color: '#3b82f6' }}
             >
-              <Home size={17} />
+              <Home size={14} className="sm:hidden" />
+              <Home size={17} className="hidden sm:block" />
             </span>
             <button
               onClick={(e) => {
@@ -104,8 +105,8 @@ export function SavedPlaces({ onSelectPlace }: Props) {
               <Edit2 size={12} />
             </button>
           </div>
-          <div className="mt-2.5">
-            <div className="text-sm font-black text-white">Home</div>
+          <div className="mt-2 sm:mt-2.5">
+            <div className="text-xs font-black text-white sm:text-sm">Home</div>
             <div className="mt-0.5 truncate text-[10px] font-medium" style={{ color: '#8b93a3' }}>
               {home.sublabel}
             </div>
@@ -114,16 +115,17 @@ export function SavedPlaces({ onSelectPlace }: Props) {
 
         {/* WORK BUTTON */}
         <div
-          className="group relative flex flex-col justify-between rounded-xl p-3 border transition-all cursor-pointer hover:border-amber-500/40"
+          className="group relative flex flex-col justify-between rounded-xl p-2.5 border transition-all cursor-pointer hover:border-amber-500/40 sm:p-3"
           style={{ background: '#14171f', borderColor: 'rgba(255,255,255,0.08)' }}
           onClick={() => onSelectPlace(work)}
         >
           <div className="flex items-center justify-between">
             <span
-              className="flex h-9 w-9 items-center justify-center rounded-lg"
+              className="flex h-7 w-7 items-center justify-center rounded-lg sm:h-9 sm:w-9"
               style={{ background: 'rgba(245,158,11,0.16)', color: '#f59e0b' }}
             >
-              <Briefcase size={17} />
+              <Briefcase size={14} className="sm:hidden" />
+              <Briefcase size={17} className="hidden sm:block" />
             </span>
             <button
               onClick={(e) => {
@@ -138,8 +140,8 @@ export function SavedPlaces({ onSelectPlace }: Props) {
               <Edit2 size={12} />
             </button>
           </div>
-          <div className="mt-2.5">
-            <div className="text-sm font-black text-white">Work</div>
+          <div className="mt-2 sm:mt-2.5">
+            <div className="text-xs font-black text-white sm:text-sm">Work</div>
             <div className="mt-0.5 truncate text-[10px] font-medium" style={{ color: '#8b93a3' }}>
               {work.sublabel}
             </div>

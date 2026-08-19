@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  ArrowLeft,
   Car,
   CheckCircle2,
   ClipboardCopy,
@@ -300,51 +301,41 @@ export function Emergency({ onGoDashboard }: { onGoDashboard: () => void }) {
       className="min-h-screen pb-28 transition-colors overflow-y-auto"
       style={{ background: "var(--bg)", color: "var(--text)" }}
     >
-      <div className="mx-auto pt-16 sm:pt-24 max-w-6xl px-4">
-        {/* Header */}
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-red-600 text-white shadow-lg">
-              <Siren size={20} />
-            </span>
-            <div>
-              <h1
-                className="text-2xl font-extrabold tracking-tight"
-                style={{ color: "var(--text)" }}
-              >
-                {mode === "active" ? "EMERGENCY MODE" : "Emergency Response"}
-              </h1>
-              <p className="text-xs" style={{ color: "var(--text-3)" }}>
-                {mode === "active"
-                  ? "Response active — nearest hospitals ranked by road ETA."
-                  : "When seconds matter, you shouldn’t be searching for a number."}
-              </p>
+      {/* Fixed top bar */}
+      <header
+        className="fixed inset-x-0 top-0 z-[1200] backdrop-blur-md transition-colors"
+        style={{ background: "var(--bg)", borderBottom: "1px solid var(--border)" }}
+      >
+        <div className="flex h-12 items-center justify-between px-3">
+          <button
+            onClick={onGoDashboard}
+            className="flex cursor-pointer items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-bold transition-colors hover:bg-white/5"
+            style={{ color: "var(--text)" }}
+          >
+            <ArrowLeft size={16} />
+            Navigate
+          </button>
+          <span className="text-xs font-extrabold tracking-tight" style={{ color: "var(--text)" }}>
+            {mode === "active" ? "EMERGENCY MODE" : "Emergency"}
+          </span>
+          <span className="w-16" />
+        </div>
+      </header>
+
+      <div className="mx-auto pt-14 sm:pt-16 max-w-6xl px-3 sm:px-4">
+        {/* Status badge when active */}
+        {mode === "active" && emergency && (
+          <div className="mb-3 flex justify-center">
+            <div className="rounded-full bg-red-500/10 px-4 py-1.5 text-xs font-bold text-red-500 border border-red-500/20">
+              {emergency.emergency_number} · {emergency.region}
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            {mode === "active" && emergency && (
-              <div className="rounded-full bg-red-500/10 px-4 py-2 text-sm font-bold text-red-500 border border-red-500/20">
-                {emergency.emergency_number} · {emergency.region}
-              </div>
-            )}
-            <button
-              onClick={onGoDashboard}
-              className="cursor-pointer rounded-full px-4 py-2 text-xs font-bold transition-all shadow-sm"
-              style={{
-                background: "var(--surface)",
-                border: "1px solid var(--border)",
-                color: "var(--text)",
-              }}
-            >
-              Back to Ride
-            </button>
-          </div>
-        </div>
+        )}
 
-        <div className="grid gap-5 lg:grid-cols-[1fr_380px]">
+        <div className="grid gap-3 sm:gap-5 lg:grid-cols-[1fr_380px]">
           {/* Map */}
           <div
-            className="relative h-[260px] sm:h-[400px] lg:h-[520px] overflow-hidden rounded-2xl border shadow-sm"
+            className="relative h-[200px] sm:h-[340px] lg:h-[520px] overflow-hidden rounded-xl border shadow-sm sm:rounded-2xl"
             style={{ borderColor: "var(--border)" }}
           >
             <MapView
@@ -379,7 +370,7 @@ export function Emergency({ onGoDashboard }: { onGoDashboard: () => void }) {
           </div>
 
           {/* Right Panel */}
-          <div className="space-y-4">
+          <div className="space-y-3 sm:space-y-4">
             {/* Location Debug Info */}
             {mode === "idle" && !errorMessage && (
               <div
@@ -445,7 +436,7 @@ export function Emergency({ onGoDashboard }: { onGoDashboard: () => void }) {
                 )}
 
                 <section
-                  className="rounded-2xl p-5 shadow-sm border"
+                  className="rounded-2xl p-4 shadow-sm border sm:p-5"
                   style={{
                     background: "var(--surface)",
                     borderColor: "var(--border)",
@@ -484,9 +475,8 @@ export function Emergency({ onGoDashboard }: { onGoDashboard: () => void }) {
               </>
             )}
 
-            {mode === "crash" && loadingStep && (
-              <section
-                className="rounded-2xl border border-yellow-500/20 p-5 shadow-sm"
+            {mode === "crash" && loadingStep && (                <section
+                  className="rounded-2xl border border-yellow-500/20 p-4 shadow-sm sm:p-5"
                 style={{ background: "var(--surface)" }}
               >
                 <div className="flex items-center gap-3">
@@ -564,7 +554,7 @@ export function Emergency({ onGoDashboard }: { onGoDashboard: () => void }) {
               <>
                 {/* Countdown */}
                 <section
-                  className="rounded-2xl border border-red-500/20 p-5 text-center shadow-sm"
+                  className="rounded-2xl border border-red-500/20 p-4 text-center shadow-sm sm:p-5"
                   style={{ background: "var(--surface)" }}
                 >
                   <div className="relative mx-auto h-[140px] w-[140px]">
@@ -621,14 +611,14 @@ export function Emergency({ onGoDashboard }: { onGoDashboard: () => void }) {
 
                 {/* Actions */}
                 <section
-                  className="rounded-2xl p-4 shadow-sm border"
+                  className="rounded-2xl p-3 shadow-sm border sm:p-4"
                   style={{
                     background: "var(--surface)",
                     borderColor: "var(--border)",
                   }}
                 >
                   <SectionLabel>One-tap actions</SectionLabel>
-                  <div className="mt-2 grid grid-cols-2 gap-2">
+                  <div className="mt-2 grid grid-cols-2 gap-1.5 sm:gap-2">
                     <a
                       href={`tel:${emergency.emergency_number}`}
                       className="flex cursor-pointer items-center justify-center gap-1.5 rounded-xl bg-red-600 py-3 text-xs font-bold text-white hover:bg-red-500 shadow-md"
@@ -682,9 +672,8 @@ export function Emergency({ onGoDashboard }: { onGoDashboard: () => void }) {
             )}
 
             {/* Hospital Ranking List */}
-            {mode === "active" && emergency && (
-              <section
-                className="rounded-2xl p-4 shadow-sm border max-h-64 overflow-y-auto slim-scroll"
+            {mode === "active" && emergency && (                <section
+                  className="rounded-2xl p-3 shadow-sm border max-h-48 overflow-y-auto slim-scroll sm:max-h-64 sm:p-4"
                 style={{
                   background: "var(--surface)",
                   borderColor: "var(--border)",

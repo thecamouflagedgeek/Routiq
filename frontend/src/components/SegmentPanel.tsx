@@ -12,14 +12,13 @@ interface Props {
 export function SegmentPanel({ segment, onClose, onReportHazard }: Props) {
   return (
     <aside
-      className="slide-in-right absolute right-4 top-16 bottom-24 z-[1050] flex w-[320px] max-w-[calc(100%-2rem)] flex-col overflow-hidden rounded-2xl shadow-2xl"
+      className="slide-in-right fixed inset-0 z-[1050] flex flex-col overflow-hidden bg-[var(--surface)] md:relative md:inset-auto md:right-4 md:top-16 md:bottom-24 md:w-[320px] md:max-w-[calc(100%-2rem)] md:rounded-2xl md:shadow-2xl"
       style={{
-        background: "var(--surface)",
         border: "1px solid var(--border)",
       }}
     >
       <div
-        className="flex items-start justify-between p-4"
+        className="flex items-start justify-between p-4 pt-14 md:pt-4"
         style={{
           backgroundColor: `${segment.risk_color}12`,
           borderBottom: "1px solid var(--border)",
@@ -63,10 +62,8 @@ export function SegmentPanel({ segment, onClose, onReportHazard }: Props) {
             {segment.distance_km.toFixed(1)} km
           </span>
         </div>
-      </div>
-
-      <div
-        className="slim-scroll flex-1 overflow-y-auto p-4"
+      </div>        <div
+          className="slim-scroll flex-1 overflow-y-auto p-3 sm:p-4"
         style={{ background: "var(--surface)" }}
       >
         <div className="mb-2 flex items-center gap-1.5">
@@ -230,7 +227,7 @@ export function SegmentPanel({ segment, onClose, onReportHazard }: Props) {
 
         <button
           onClick={() => onReportHazard(segment)}
-          className="mt-3 flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-semibold transition-colors"
+          className="mt-3 mb-16 flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-semibold transition-colors md:mb-0"
           style={{
             border: "1px solid var(--border)",
             color: "var(--text-2)",
