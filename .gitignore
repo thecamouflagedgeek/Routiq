@@ -27,3 +27,11 @@ build/
 # Freebuff sandbox worktrees (development copies - ignore)
 >>>>>>> member-3
 .freebuff/
+# Ignore all Markdown files
+*.md
+
+# But keep README.md
+!README.md
+
+# Ignore .freebuff folder
+.freebuff/
